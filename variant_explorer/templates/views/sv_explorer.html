@@ -1,0 +1,193 @@
+<!-- Structural Variant Explorer View -->
+<div class="view-section" id="sv-view">
+  <!-- Case Summary Banner -->
+  <div class="case-summary-card">
+    <div class="summary-meta-group">
+      <div class="meta-item">
+        <span class="meta-label">Total SVs (>=50bp)</span>
+        <span class="meta-value" id="svSummaryTotal">-</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Caller Engine</span>
+        <span class="meta-value">Sniffles2 / cuteSV (ONT R10.4.1)</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Rearrangement Visualization</span>
+        <span class="meta-value" style="color: #ef4444; font-weight: 700;">Interactive Circos Engine</span>
+      </div>
+    </div>
+    
+    <div class="stat-pills">
+      <div class="stat-pill danger"><span id="pillDelCount">0</span> Deletions (DEL)</div>
+      <div class="stat-pill info"><span id="pillDupCount">0</span> Duplications (DUP)</div>
+      <div class="stat-pill success"><span id="pillInsCount">0</span> Insertions (INS)</div>
+      <div class="stat-pill warning"><span id="pillBndCount">0</span> Translocations & Fusions (BND)</div>
+    </div>
+  </div>
+
+  <!-- Circos View Mode Switcher -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <div style="display: flex; gap: 0.5rem;">
+      <button id="svViewCircosBtn" class="btn btn-primary" onclick="switchSvViewMode('circos')" style="font-size: 0.82rem; font-weight: 700;">
+        <i class="fa-solid fa-circle-notch"></i> Interactive Circos (Complex SVs & Fusions)
+      </button>
+      <button id="svViewTableBtn" class="btn btn-secondary" onclick="switchSvViewMode('table')" style="font-size: 0.82rem; font-weight: 700;">
+        <i class="fa-solid fa-table-list"></i> Structural Variant Callset Table
+      </button>
+    </div>
+
+    <div style="font-size: 0.8rem; color: var(--text-muted);">
+      <i class="fa-solid fa-circle-info"></i> Click any Circos chord or table row to inspect clinical breakpoint and fusion topology
+    </div>
+  </div>
+
+  <!-- Interactive Circos Studio Section -->
+  <div id="svCircosSection" class="card" style="margin-bottom: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
+    <!-- Circos Header & Controls -->
+    <div style="background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--medical-teal); flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.65rem;">
+        <span class="hospital-badge" style="background: #ef4444;">CIRCOS FUSION VIEWER</span>
+        <h3 style="color: #ffffff; font-size: 1.05rem; font-weight: 700; margin: 0;">Genome-Wide Structural Rearrangements & Translocations</h3>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span style="font-size: 0.8rem; color: #cbd5e1; font-weight: 600;">Show:</span>
+        <select id="circosTypeFilter" class="filter-control" style="background: #1e293b; color: #ffffff; border-color: #334155; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+          <option value="">All Structural Variants</option>
+          <option value="BND" selected>Translocations & Fusions (BND)</option>
+          <option value="INV">Inversions (INV)</option>
+          <option value="DUP">Duplications (DUP)</option>
+          <option value="DEL">Deletions (DEL)</option>
+        </select>
+        <button id="circosResetBtn" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+          <i class="fa-solid fa-rotate-left"></i> Reset View
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Circos Grid: Left SVG, Right Complex Variant Inspector -->
+    <div style="display: grid; grid-template-columns: 580px 1fr; gap: 1.5rem; padding: 1.25rem; background: #070c18; min-height: 590px; align-items: start;">
+      
+      <!-- Circos SVG Container -->
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <div id="circosSvgContainer" style="width: 560px; height: 560px; display: flex; justify-content: center; align-items: center;">
+          <div style="color: #94a3b8; text-align: center;">
+            <div class="spinner" style="margin: 0 auto 0.75rem auto;"></div>
+            Loading interactive Circos plot...
+          </div>
+        </div>
+
+        <!-- Legend Bar -->
+        <div style="display: flex; gap: 0.85rem; margin-top: 0.5rem; font-size: 0.75rem; color: #94a3b8; flex-wrap: wrap; justify-content: center;">
+          <span><strong style="color: #ef4444;"><i class="fa-solid fa-shuffle"></i> Translocation / Fusion (BND)</strong></span>
+          <span><strong style="color: #a855f7;"><i class="fa-solid fa-arrows-rotate"></i> Inversion (INV)</strong></span>
+          <span><strong style="color: #0284c7;"><i class="fa-solid fa-plus"></i> Duplication (DUP)</strong></span>
+          <span><strong style="color: #f43f5e;"><i class="fa-solid fa-minus"></i> Deletion (DEL)</strong></span>
+        </div>
+      </div>
+
+      <!-- Complex Variant & Fusion Inspector -->
+      <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 1.25rem; min-height: 540px; display: flex; flex-direction: column;" id="complexSvInspectorPanel">
+        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #64748b; text-align: center; padding: 4rem 1rem;">
+          <div>
+            <i class="fa-solid fa-shuffle fa-3x" style="color: #334155; margin-bottom: 1rem;"></i>
+            <h4 style="color: #cbd5e1; font-weight: 700; margin-bottom: 0.5rem;">Select a Variant in Circos Plot</h4>
+            <p style="font-size: 0.85rem; max-width: 320px; margin: 0 auto;">
+              Click any colored chord in the circular genome view to inspect fused gene partners, exact breakpoint coordinates, clinical actionability, and long-read support.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Tabular SV Callset Section -->
+  <div id="svTableSection">
+    <!-- Filter Toolbar -->
+    <div class="filter-card">
+      <div class="filter-row">
+        <div class="filter-input-group">
+          <span class="filter-label"><i class="fa-solid fa-layer-group" style="color: #0284c7;"></i> Gene Panel:</span>
+          <select id="svPanelFilter" class="filter-control" style="width: 220px; font-weight: 600;">
+            <option value="">All Genes (Genome-wide)</option>
+          </select>
+          <button type="button" class="btn btn-secondary openGenePanelModalBtn" style="padding: 0.25rem 0.55rem; font-size: 0.78rem;" title="Manage Clinical Gene Panels & Versions">
+            <i class="fa-solid fa-sliders"></i> Panels
+          </button>
+        </div>
+
+        <div class="filter-input-group">
+          <span class="filter-label">Search Gene:</span>
+          <input type="text" id="svGeneFilter" class="filter-control" placeholder="e.g. MSH2, DMD, BCR..." style="width: 130px;">
+        </div>
+        
+        <div class="filter-input-group">
+          <span class="filter-label">SV Type:</span>
+          <select id="svTypeFilter" class="filter-control">
+            <option value="">All SV Types</option>
+            <option value="DEL">Deletion (DEL)</option>
+            <option value="DUP">Duplication (DUP)</option>
+            <option value="INS">Insertion (INS)</option>
+            <option value="INV">Inversion (INV)</option>
+            <option value="BND">Translocation / Breakend (BND)</option>
+          </select>
+        </div>
+
+        <div class="filter-input-group">
+          <span class="filter-label">Min Length (bp):</span>
+          <input type="number" id="svMinLenFilter" class="filter-control" min="0" step="50" placeholder="50" style="width: 90px;">
+        </div>
+
+        <div class="filter-input-group">
+          <span class="filter-label">Max Length (bp):</span>
+          <input type="number" id="svMaxLenFilter" class="filter-control" min="0" step="500" placeholder="Any" style="width: 90px;">
+        </div>
+
+        <div class="filter-input-group">
+          <span class="filter-label">Min Support Reads:</span>
+          <input type="number" id="svMinSupportFilter" class="filter-control" min="1" step="1" placeholder="3" style="width: 70px;">
+        </div>
+
+        <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+          <button id="svApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
+          <button id="svResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SV Table -->
+    <div class="table-card">
+      <div class="table-responsive">
+        <table class="clinic-table" id="svTable">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Overlap Gene(s)</th>
+              <th>Breakpoint 1 (Start)</th>
+              <th>Breakpoint 2 (End)</th>
+              <th>Size (bp)</th>
+              <th>Support Reads / DP</th>
+              <th>VAF</th>
+              <th>Genotype</th>
+              <th>Tandem Repeat (TR)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="svTableBody">
+            <tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading structural variants...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination-bar">
+        <div>Showing <span id="svShowingStart">0</span> - <span id="svShowingEnd">0</span> of <span id="svTotalCount">0</span> SVs</div>
+        <div class="pagination-controls">
+          <button class="btn btn-secondary" id="svPrevPageBtn" disabled><i class="fa-solid fa-chevron-left"></i> Previous</button>
+          <span style="font-weight: 600;">Page <span id="svCurrentPage">1</span> / <span id="svTotalPages">1</span></span>
+          <button class="btn btn-secondary" id="svNextPageBtn" disabled>Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

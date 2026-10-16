@@ -1,0 +1,140 @@
+<!-- SNV / Indel Explorer View -->
+<div class="view-section" id="snv-view">
+  <!-- Case Summary Banner -->
+  <div class="case-summary-card">
+    <div class="summary-meta-group">
+      <div class="meta-item">
+        <span class="meta-label">Sample Name</span>
+        <span class="meta-value" id="snvSummarySample">-</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Mean Depth</span>
+        <span class="meta-value" id="snvSummaryDepth">-</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Ti/Tv Ratio</span>
+        <span class="meta-value" id="snvSummaryTitv">-</span>
+      </div>
+    </div>
+    
+    <div class="stat-pills">
+      <div class="stat-pill danger">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span id="pillPathogenicCount">0</span> Pathogenic / Likely Path
+      </div>
+      <div class="stat-pill warning">
+        <i class="fa-solid fa-circle-question"></i>
+        <span id="pillVusCount">0</span> VUS
+      </div>
+      <div class="stat-pill info">
+        <i class="fa-solid fa-code-branch"></i>
+        <span id="pillPhasedCount">0</span> Phased (ONT PS)
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Toolbar -->
+  <div class="filter-card">
+    <div class="filter-row">
+      <div class="filter-input-group">
+        <span class="filter-label"><i class="fa-solid fa-layer-group" style="color: #0284c7;"></i> Gene Panel:</span>
+        <select id="snvPanelFilter" class="filter-control" style="width: 220px; font-weight: 600;">
+          <option value="">All Genes (Genome-wide)</option>
+        </select>
+        <button type="button" class="btn btn-secondary openGenePanelModalBtn" style="padding: 0.25rem 0.55rem; font-size: 0.78rem;" title="Manage Clinical Gene Panels & Versions">
+          <i class="fa-solid fa-sliders"></i> Panels
+        </button>
+      </div>
+
+      <div class="filter-input-group">
+        <span class="filter-label">Search Gene:</span>
+        <input type="text" id="snvGeneFilter" class="filter-control" placeholder="e.g. TP53, BRCA1..." style="width: 130px;">
+      </div>
+      
+      <div class="filter-input-group">
+        <span class="filter-label">ACMG Class:</span>
+        <select id="snvAcmgFilter" class="filter-control">
+          <option value="">All Classifications</option>
+          <option value="Pathogenic">Pathogenic</option>
+          <option value="Likely Pathogenic">Likely Pathogenic</option>
+          <option value="VUS">VUS</option>
+          <option value="Likely Benign">Likely Benign</option>
+          <option value="Benign">Benign</option>
+        </select>
+      </div>
+
+      <div class="filter-input-group">
+        <span class="filter-label">Consequence:</span>
+        <select id="snvConsequenceFilter" class="filter-control">
+          <option value="">All Consequences</option>
+          <option value="missense_variant">Missense</option>
+          <option value="stop_gained">Nonsense (Stop Gained)</option>
+          <option value="frameshift_variant">Frameshift</option>
+          <option value="splice_donor_variant">Splice Donor</option>
+          <option value="splice_acceptor_variant">Splice Acceptor</option>
+          <option value="synonymous_variant">Synonymous</option>
+        </select>
+      </div>
+
+      <div class="filter-input-group">
+        <span class="filter-label">Min VAF:</span>
+        <input type="number" id="snvMinVafFilter" class="filter-control" min="0" max="1" step="0.05" placeholder="0.00" style="width: 70px;">
+      </div>
+
+      <div class="filter-input-group">
+        <span class="filter-label">Min Depth:</span>
+        <input type="number" id="snvMinDpFilter" class="filter-control" min="0" step="5" placeholder="0" style="width: 70px;">
+      </div>
+
+      <div class="filter-input-group">
+        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+          <input type="checkbox" id="snvPhasedOnlyFilter"> Phased Only
+        </label>
+      </div>
+
+      <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+        <button id="snvApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
+        <button id="snvResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Table -->
+  <div class="table-card">
+    <div class="table-responsive">
+      <table class="clinic-table compact-table" id="snvTable">
+        <thead>
+          <tr>
+            <th class="col-gene">Gene</th>
+            <th class="col-pos">Genomic Position</th>
+            <th class="col-change">cDNA / Protein</th>
+            <th class="col-consequence">Consequence</th>
+            <th class="col-vaf">VAF (Depth)</th>
+            <th class="col-gt">GT</th>
+            <th class="col-ps">Phase Set</th>
+            <th class="col-acmg">ACMG Class</th>
+            <th class="col-tier">Somatic Tier</th>
+            <th class="col-af">gnomAD AF</th>
+            <th class="col-actions">Action</th>
+          </tr>
+        </thead>
+        <tbody id="snvTableBody">
+          <tr><td colspan="11" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading variant calls...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Controls (Guardrail max 500 rows) -->
+    <div class="pagination-bar">
+      <div>
+        Showing <span id="snvShowingStart">0</span> - <span id="snvShowingEnd">0</span> of <span id="snvTotalCount">0</span> variants
+        <span style="color: #0077b6; margin-left: 0.5rem; font-size: 0.75rem;">(Capped at 500 rows/page for optimal browser performance)</span>
+      </div>
+      <div class="pagination-controls">
+        <button class="btn btn-secondary" id="snvPrevPageBtn" disabled><i class="fa-solid fa-chevron-left"></i> Previous</button>
+        <span style="font-weight: 600;">Page <span id="snvCurrentPage">1</span> / <span id="snvTotalPages">1</span></span>
+        <button class="btn btn-secondary" id="snvNextPageBtn" disabled>Next <i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+    </div>
+  </div>
+</div>

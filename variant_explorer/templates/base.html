@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Hospital Clínic | CoreBM Long-Read Variant Explorer{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hospital_clinic.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <header class="clinic-header">
+    <div class="brand-section">
+      <span class="hospital-badge">CLÍNIC BARCELONA</span>
+      <div>
+        <div class="brand-title">
+          <i class="fa-solid fa-dna" style="color: #00a896;"></i>
+          CoreBM Long-Read Variant Explorer
+        </div>
+        <div class="brand-subtitle">Clinical Long-Read Interpretation & Epigenetics (Oxford Nanopore)</div>
+      </div>
+    </div>
+    
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div class="case-selector-bar">
+        <span style="font-size: 0.8rem; color: #cbd5e1; font-weight: 600;">Active Case:</span>
+        <select id="activeCaseSelect" aria-label="Select active clinical case">
+          <option value="">Loading cases...</option>
+        </select>
+        <button id="refreshCaseBtn" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Refresh Case Data">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+      </div>
+      
+      <button id="openUploadModalBtn" class="btn btn-teal">
+        <i class="fa-solid fa-cloud-arrow-up"></i> New Case / Ingest
+      </button>
+    </div>
+  </header>
+
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <nav class="app-sidebar">
+      <ul class="sidebar-nav">
+        <li class="sidebar-item active" data-view="qc-view">
+          <i class="fa-solid fa-microscope"></i>
+          <span>Case QC & Phasing</span>
+        </li>
+        <li class="sidebar-item" data-view="snv-view">
+          <i class="fa-solid fa-list-check"></i>
+          <span>SNVs & Indels</span>
+          <span class="sidebar-badge" id="badgeSnvCount">0</span>
+        </li>
+        <li class="sidebar-item" data-view="sv-view">
+          <i class="fa-solid fa-scissors"></i>
+          <span>Structural Variants</span>
+          <span class="sidebar-badge" id="badgeSvCount">0</span>
+        </li>
+        <li class="sidebar-item" data-view="methylation-view">
+          <i class="fa-solid fa-circle-nodes"></i>
+          <span>DNA Methylation</span>
+          <span class="sidebar-badge" id="badgeMethCount">0</span>
+        </li>
+        <li class="sidebar-item" data-view="locus-view">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Multi-Track Locus</span>
+        </li>
+        <li class="sidebar-item" data-view="report-view">
+          <i class="fa-solid fa-file-medical"></i>
+          <span>Clinical Report</span>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div><strong>Hospital Clínic de Barcelona</strong></div>
+        <div style="color: #475569;">Centre de Diagnòstic Biomèdic (CDB)</div>
+        <div style="color: #00a896; margin-top: 0.25rem;">v1.0.0-PROD (ONT R10.4.1)</div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="app-content" id="mainContent">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- Detail Drawer -->
+  <aside class="detail-drawer" id="detailDrawer" aria-label="Variant Detail Panel">
+    <div class="drawer-header">
+      <div>
+        <h3 id="drawerTitle" style="font-size: 1.1rem; font-weight: 700;">Variant Details</h3>
+        <p id="drawerSubtitle" style="font-size: 0.8rem; color: #cbd5e1;">Genomic Coordinates</p>
+      </div>
+      <button class="drawer-close" id="closeDrawerBtn" aria-label="Close Detail Drawer">&times;</button>
+    </div>
+    
+    <div class="drawer-body" id="drawerContent">
+      <!-- Injected dynamically -->
+    </div>
+    
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" id="drawerInspectLocusBtn">
+        <i class="fa-solid fa-magnifying-glass-location"></i> Inspect in Locus Track
+      </button>
+      <button class="btn btn-primary" id="drawerAddToReportBtn">
+        <i class="fa-solid fa-plus"></i> Add to Report
+      </button>
+    </div>
+  </aside>
+
+  <!-- Modals & Toasts -->
+  {% include 'components/modals.html' %}
+  {% include 'components/toast.html' %}
+
+  <!-- IGV.js Integrative Genomics Viewer (Local Vendor) -->
+  <script src="{{ url_for('static', filename='vendor/igv.min.js') }}"></script>
+
+  <!-- Core Scripts -->
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/snv_table.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sv_viewer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/circos_viewer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/methylation_view.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/locus_track.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/report_builder.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/panel_manager.js') }}"></script>
+  {% block scripts_extra %}{% endblock %}
+</body>
+</html>

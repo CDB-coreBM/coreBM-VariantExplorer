@@ -1,0 +1,238 @@
+<!-- Case Ingestion Modal -->
+<div class="modal-backdrop" id="uploadModal">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size: 1rem;"><i class="fa-solid fa-folder-plus"></i> Ingest Clinical ONT Case</h3>
+      <button class="drawer-close" onclick="closeUploadModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="ingestCaseForm" style="display: flex; flex-direction: column; gap: 0.9rem;">
+        <div>
+          <label class="filter-label">Case / Sample ID *</label>
+          <input type="text" id="newCaseId" class="filter-control" style="width: 100%;" placeholder="e.g. CLINIC-ONT-2026-002" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <div>
+            <label class="filter-label">Sequencing Instrument</label>
+            <select id="newInstrument" class="filter-control" style="width: 100%;">
+              <option value="PromethION 24">PromethION 24</option>
+              <option value="GridION Mk1">GridION Mk1</option>
+              <option value="MinION Mk1B">MinION Mk1B</option>
+            </select>
+          </div>
+          <div>
+            <label class="filter-label">Flowcell / Chemistry</label>
+            <input type="text" id="newFlowcell" class="filter-control" style="width: 100%;" value="R10.4.1 (FLO-PRO114M)">
+          </div>
+        </div>
+        <div>
+          <label class="filter-label">Small Variants VCF (Clair3 / DeepVariant)</label>
+          <input type="file" id="vcfSnvFile" class="filter-control" style="width: 100%;" accept=".vcf,.vcf.gz">
+        </div>
+        <div>
+          <label class="filter-label">Structural Variants VCF (Sniffles2 / cuteSV)</label>
+          <input type="file" id="vcfSvFile" class="filter-control" style="width: 100%;" accept=".vcf,.vcf.gz">
+        </div>
+        <div>
+          <label class="filter-label">DNA Methylation (modkit 18-col bedMethyl)</label>
+          <input type="file" id="bedMethFile" class="filter-control" style="width: 100%;" accept=".bed,.bed.gz,.bedmethyl">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+      <button class="btn btn-teal" id="submitIngestBtn"><i class="fa-solid fa-cloud-arrow-up"></i> Process & Ingest Case</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clinical Gene Panel Management & Versioning Modal -->
+<div class="modal-backdrop" id="genePanelModal" style="display: none; z-index: 1050;">
+  <div class="modal-dialog" style="max-width: 960px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+    <div class="modal-header" style="background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); color: #ffffff; padding: 0.9rem 1.25rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="hospital-badge" style="background: #0284c7;">GENE PANEL CONTROL</span>
+        <h3 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: #ffffff;">
+          <i class="fa-solid fa-sliders"></i> Clinical Gene Panel Manager &amp; Versioning
+        </h3>
+      </div>
+      <button class="drawer-close" style="color: #cbd5e1;" onclick="closeGenePanelModal()">&times;</button>
+    </div>
+
+    <div class="modal-body" style="padding: 1.25rem; overflow-y: auto; flex: 1; background: #0f172a; color: #f8fafc;">
+      <div style="display: grid; grid-template-columns: 280px 1fr; gap: 1.25rem; min-height: 480px;">
+        
+        <!-- Left: Panel List & Actions -->
+        <div style="border-right: 1px solid #334155; padding-right: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Available Panels</span>
+            <button id="showNewPanelFormBtn" class="btn btn-teal" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="showNewPanelForm()">
+              <i class="fa-solid fa-plus"></i> New Panel
+            </button>
+          </div>
+
+          <!-- Panel list container -->
+          <div id="panelListContainer" style="display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto; max-height: 440px;">
+            <div style="text-align: center; color: #64748b; padding: 2rem 0;">Loading panels...</div>
+          </div>
+        </div>
+
+        <!-- Right: Active Panel Detail, Gene Chips & Versioning -->
+        <div id="panelDetailContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+          
+          <!-- Panel Header Summary -->
+          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+              <div>
+                <h4 id="panelDetailName" style="font-size: 1.1rem; font-weight: 700; color: #38bdf8; margin: 0 0 0.25rem 0;">ACMG Secondary Findings</h4>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <span id="panelDetailCategory" class="badge" style="background: #334155; color: #cbd5e1; font-size: 0.75rem;">Actionable</span>
+                  <span id="panelDetailCode" style="font-family: monospace; font-size: 0.75rem; color: #94a3b8;">ACMG_SF_V3_2</span>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span id="panelActiveVersionBadge" class="badge badge-pathogenic" style="background: #0284c7; color: white; font-size: 0.82rem; font-weight: 700;">v3.2 Active</span>
+                <div id="panelActiveGeneCount" style="font-size: 0.78rem; color: #cbd5e1; margin-top: 0.25rem;">81 Curated Genes</div>
+              </div>
+            </div>
+            <p id="panelDetailDesc" style="font-size: 0.8rem; color: #cbd5e1; margin: 0; line-height: 1.4;">
+              American College of Medical Genetics actionable findings.
+            </p>
+          </div>
+
+          <!-- Interactive Gene Set Workspace -->
+          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <strong style="font-size: 0.85rem; color: #f8fafc;"><i class="fa-solid fa-dna" style="color: #00a896;"></i> Genes in Working Panel:</strong>
+                <span id="workingGeneCountBadge" class="badge" style="background: #0f172a; color: #38bdf8;">81</span>
+              </div>
+              
+              <!-- Quick Search Filter in Chips -->
+              <input type="text" id="geneChipSearchInput" placeholder="Filter genes in panel..." 
+                     style="background: #0f172a; border: 1px solid #334155; color: white; border-radius: 4px; padding: 0.25rem 0.5rem; font-size: 0.75rem; width: 170px;">
+            </div>
+
+            <!-- Add Gene Input Bar -->
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <input type="text" id="addGeneInput" placeholder="Enter gene symbol(s) e.g. HBA1, HBA2, ATRX (comma/space separated)..." 
+                     style="background: #0f172a; border: 1px solid #475569; color: #ffffff; border-radius: 6px; padding: 0.4rem 0.65rem; font-size: 0.82rem; flex: 1; text-transform: uppercase;">
+              <button class="btn btn-teal" style="padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="addGenesToCurrentPanel()">
+                <i class="fa-solid fa-plus"></i> Add Genes
+              </button>
+            </div>
+
+            <!-- Chips Container -->
+            <div id="geneChipsContainer" style="display: flex; flex-wrap: wrap; gap: 0.35rem; max-height: 160px; overflow-y: auto; padding: 0.5rem; background: #0f172a; border-radius: 6px; border: 1px solid #334155;">
+              <!-- Dynamic Chips -->
+            </div>
+          </div>
+
+          <!-- Version Bumping & Publish Section -->
+          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+              <strong style="font-size: 0.85rem; color: #f8fafc;"><i class="fa-solid fa-code-commit" style="color: #f59e0b;"></i> Publish Version Bump (Audit Trail)</strong>
+              <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;" onclick="toggleVersionHistory()">
+                <i class="fa-solid fa-clock-rotate-left"></i> <span id="historyToggleText">View Version History</span>
+              </button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 100px 1fr 140px auto; gap: 0.5rem; align-items: center;">
+              <div>
+                <input type="text" id="bumpVersionStr" class="filter-control" placeholder="v1.1" style="width: 100%; font-size: 0.8rem; background: #0f172a; color: white;">
+              </div>
+              <div>
+                <input type="text" id="bumpChangelog" class="filter-control" placeholder="Changelog (e.g. Added HBA1/HBA2 for alpha-thalassemia analysis)..." style="width: 100%; font-size: 0.8rem; background: #0f172a; color: white;">
+              </div>
+              <div>
+                <input type="text" id="bumpAuthor" class="filter-control" placeholder="Author / Geneticist" style="width: 100%; font-size: 0.8rem; background: #0f172a; color: white;" value="Clinical Geneticist">
+              </div>
+              <div>
+                <button class="btn btn-primary" style="padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="publishPanelVersionBump()">
+                  <i class="fa-solid fa-floppy-disk"></i> Publish
+                </button>
+              </div>
+            </div>
+
+            <!-- Version History Accordion -->
+            <div id="versionHistoryContainer" style="display: none; margin-top: 0.75rem; border-top: 1px solid #334155; padding-top: 0.75rem;">
+              <table style="width: 100%; font-size: 0.75rem; border-collapse: collapse; color: #cbd5e1;">
+                <thead>
+                  <tr style="border-bottom: 1px solid #334155; color: #94a3b8; text-align: left;">
+                    <th style="padding: 0.3rem;">Version</th>
+                    <th style="padding: 0.3rem;">Genes</th>
+                    <th style="padding: 0.3rem;">Changelog</th>
+                    <th style="padding: 0.3rem;">Author</th>
+                    <th style="padding: 0.3rem;">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="versionHistoryTbody">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right Alt: Create New Custom Panel Form (Hidden by default) -->
+        <div id="newPanelFormContainer" style="display: none; flex-direction: column; gap: 0.9rem; background: #1e293b; padding: 1.25rem; border-radius: 8px; border: 1px solid #334155;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 0.5rem;">
+            <h4 style="color: #38bdf8; margin: 0; font-size: 1.05rem;"><i class="fa-solid fa-plus-circle"></i> Create New Clinical Gene Panel</h4>
+            <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="hideNewPanelForm()">Cancel</button>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div>
+              <label class="filter-label">Panel Name *</label>
+              <input type="text" id="newPanelName" class="filter-control" style="width: 100%; background: #0f172a; color: white;" placeholder="e.g. Hereditary Ataxia & Paraplegia">
+            </div>
+            <div>
+              <label class="filter-label">Unique Panel Code *</label>
+              <input type="text" id="newPanelCode" class="filter-control" style="width: 100%; background: #0f172a; color: white; text-transform: uppercase;" placeholder="e.g. ATAXIA_CORE">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div>
+              <label class="filter-label">Clinical Category</label>
+              <select id="newPanelCategory" class="filter-control" style="width: 100%; background: #0f172a; color: white;">
+                <option value="Hereditary Oncology">Hereditary Oncology</option>
+                <option value="Neurology & Neurogenetics">Neurology & Neurogenetics</option>
+                <option value="Cardiology">Cardiology</option>
+                <option value="Hematology">Hematology</option>
+                <option value="Pharmacogenomics">Pharmacogenomics</option>
+                <option value="Rare Disease / Pediatric">Rare Disease / Pediatric</option>
+                <option value="Clinical Genetics">Clinical Genetics</option>
+              </select>
+            </div>
+            <div>
+              <label class="filter-label">Initial Version</label>
+              <input type="text" id="newPanelVersion" class="filter-control" style="width: 100%; background: #0f172a; color: white;" value="v1.0">
+            </div>
+          </div>
+
+          <div>
+            <label class="filter-label">Panel Description</label>
+            <input type="text" id="newPanelDesc" class="filter-control" style="width: 100%; background: #0f172a; color: white;" placeholder="Clinical indication, guidelines, and diagnostic scope...">
+          </div>
+
+          <div>
+            <label class="filter-label">Initial Gene List (Comma or space separated HGNC gene symbols) *</label>
+            <textarea id="newPanelGenes" class="filter-control" rows="4" style="width: 100%; background: #0f172a; color: white; text-transform: uppercase; font-family: monospace;" placeholder="FXN, ATXN1, ATXN2, ATXN3, CACNA1A, SPG7, SETX..."></textarea>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+            <button class="btn btn-secondary" onclick="hideNewPanelForm()">Cancel</button>
+            <button class="btn btn-teal" onclick="submitCreateNewPanel()"><i class="fa-solid fa-check"></i> Create Panel</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="modal-footer" style="background: #0b1329; border-top: 1px solid #334155; padding: 0.75rem 1.25rem;">
+      <button class="btn btn-secondary" onclick="closeGenePanelModal()">Close</button>
+    </div>
+  </div>
+</div>

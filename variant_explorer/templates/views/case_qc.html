@@ -1,0 +1,79 @@
+<!-- Case QC & Phasing View -->
+<div class="view-section active" id="qc-view">
+  <div class="case-summary-card">
+    <div>
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--primary-navy);">Oxford Nanopore Sequencing Run QC</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted);">Technical run metrics, basecalling fidelity, read length N50, and diploid haplotype phasing completeness.</p>
+    </div>
+    <div>
+      <span class="badge badge-likely-benign" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;"><i class="fa-solid fa-circle-check"></i> QC Passed</span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+    <!-- Card 1 -->
+    <div class="filter-card">
+      <h4 class="drawer-section-title"><i class="fa-solid fa-server"></i> Flowcell & Instrument</h4>
+      <div class="drawer-kv-grid" style="margin-top: 0.5rem;">
+        <span class="drawer-kv-label">Instrument:</span>
+        <span class="drawer-kv-value" id="qcInstrument">-</span>
+        <span class="drawer-kv-label">Flowcell Type:</span>
+        <span class="drawer-kv-value" id="qcFlowcell">-</span>
+        <span class="drawer-kv-label">Basecaller:</span>
+        <span class="drawer-kv-value" id="qcBasecaller">-</span>
+        <span class="drawer-kv-label">Basecaller Model:</span>
+        <span class="drawer-kv-value">dna_r10.4.1_e8.2_400bps_sup@v4.2.0</span>
+      </div>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="filter-card">
+      <h4 class="drawer-section-title"><i class="fa-solid fa-gauge-high"></i> Yield & Depth</h4>
+      <div class="drawer-kv-grid" style="margin-top: 0.5rem;">
+        <span class="drawer-kv-label">Total Bases:</span>
+        <span class="drawer-kv-value" id="qcTotalBases">-</span>
+        <span class="drawer-kv-label">Mean Depth:</span>
+        <span class="drawer-kv-value" id="qcMeanDepth">-</span>
+        <span class="drawer-kv-label">Read N50:</span>
+        <span class="drawer-kv-value" id="qcReadN50">-</span>
+        <span class="drawer-kv-label">Mean Q-Score:</span>
+        <span class="drawer-kv-value" id="qcMeanQScore">Q21.8 (HiFi equivalent)</span>
+      </div>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="filter-card">
+      <h4 class="drawer-section-title"><i class="fa-solid fa-code-fork"></i> Variant Callset QC</h4>
+      <div class="drawer-kv-grid" style="margin-top: 0.5rem;">
+        <span class="drawer-kv-label">Ti/Tv Ratio:</span>
+        <span class="drawer-kv-value" id="qcTitv">-</span>
+        <span class="drawer-kv-label">Small Variants:</span>
+        <span class="drawer-kv-value" id="qcSnvTotal">-</span>
+        <span class="drawer-kv-label">Structural Variants:</span>
+        <span class="drawer-kv-value" id="qcSvTotal">-</span>
+        <span class="drawer-kv-label">Methylation Regions:</span>
+        <span class="drawer-kv-value" id="qcMethTotal">-</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-card" style="margin-top: 1rem;">
+    <h4 class="drawer-section-title"><i class="fa-solid fa-link"></i> Phased Compound Heterozygosity (Cis vs Trans)</h4>
+    <p style="font-size: 0.85rem; color: #475569; margin: 0.35rem 0 0.75rem 0;">
+      Resolves recessive disease pathogenicity by determining whether two co-occurring mutations reside on opposite physical haplotypes (<span style="color:#10b981; font-weight:700;">In-Trans = Biallelic / Diagnostic Confirmation</span>) or the same haplotype (<span style="color:#f59e0b; font-weight:700;">In-Cis = Carrier</span>).
+    </p>
+    <div id="compoundHetTableContainer">
+      <div style="text-align: center; color: #64748b; padding: 1rem;">Loading phased compound heterozygous variants...</div>
+    </div>
+  </div>
+
+  <div class="filter-card" style="margin-top: 1rem;">
+    <h4 class="drawer-section-title"><i class="fa-solid fa-arrows-left-right-to-line"></i> Tandem Repeat Expansions (TRGT / Straglr)</h4>
+    <p style="font-size: 0.85rem; color: #475569; margin: 0.35rem 0 0.75rem 0;">
+      Long-read direct single-molecule repeat sizing for pathogenic expansion disorders including Huntington disease (<em>HTT</em>), ALS/FTD (<em>C9orf72</em>), and Fragile X (<em>FMR1</em>).
+    </p>
+    <div id="repeatsTableContainer">
+      <div style="text-align: center; color: #64748b; padding: 1rem;">Loading tandem repeat expansions...</div>
+    </div>
+  </div>
+</div>

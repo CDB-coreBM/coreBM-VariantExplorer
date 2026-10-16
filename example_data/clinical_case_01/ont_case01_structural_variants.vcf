@@ -1,0 +1,19 @@
+##fileformat=VCFv4.2
+##source=Sniffles2_v2.2_ONT_R10.4.1
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Difference in length, positive for insertions, negative for deletions">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the variant described in this record">
+##INFO=<ID=SUPPORT,Number=1,Type=Integer,Description="Number of reads supporting the variant">
+##INFO=<ID=RE,Number=1,Type=Integer,Description="Read support (Sniffles alias)">
+##INFO=<ID=GENES,Number=.,Type=String,Description="Annotated genes overlapped by SV">
+##INFO=<ID=TR,Number=1,Type=String,Description="Tandem repeat annotation hit">
+##INFO=<ID=STRANDS,Number=1,Type=String,Description="Strand orientation of supporting reads">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele fraction">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	ONT_CLINICAL_01
+chr2	47400000	Sniffles2.DEL.1	N	<DEL>	999	PASS	SVTYPE=DEL;SVLEN=-14200;END=47414200;SUPPORT=38;RE=38;GENES=MSH2;STRANDS=+-	GT:DP:AF	0/1:42:0.45
+chrX	31180000	Sniffles2.DEL.2	N	<DEL>	999	PASS	SVTYPE=DEL;SVLEN=-45000;END=31225000;SUPPORT=34;RE=34;GENES=DMD;STRANDS=+-	GT:DP:AF	0/1:36:0.47
+chr9	130854064	Sniffles2.BND.1	N	N[chr22:23290413[	880	PASS	SVTYPE=BND;END=130854064;SUPPORT=28;RE=28;GENES=ABL1,BCR;STRANDS=++	GT:DP:AF	0/1:40:0.35
+chr13	28034000	Sniffles2.DUP.1	N	<DUP>	750	PASS	SVTYPE=DUP;SVLEN=120;END=28034120;SUPPORT=22;RE=22;GENES=FLT3;STRANDS=++	GT:DP:AF	0/1:45:0.24
+chr4	88200000	Sniffles2.INV.1	N	<INV>	600	PASS	SVTYPE=INV;SVLEN=3500;END=88203500;SUPPORT=20;RE=20;GENES=Intergenic;STRANDS=--	GT:DP:AF	0/1:38:0.26

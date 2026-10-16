@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Large binary genomic files (>100MB, excluded from standard git)
+*.bam
+*.bam.bai
+HG002_GRCh38_ONT-UL_UCSC_20200508.phased.bam.bai
+data_store/samples/HG002/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz*
+
+# IDE and OS artifacts
+.DS_Store
+.vscode/
+.idea/

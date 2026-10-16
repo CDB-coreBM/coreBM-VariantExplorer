@@ -1,0 +1,163 @@
+{
+  "benchmark_metadata": {
+    "study_title": "A complete diploid human genome benchmark for personalized genomics",
+    "authors": "Nancy F. Hansen, Nathan Dwarshuis, Hyun Joo Ji, Arang Rhie, Hailey Loucks, Glennis A. Logsdon, Mitchell R. Vollger, Adam M. Phillippy, et al.",
+    "journal": "Cell",
+    "publication_date": "2026-08-06",
+    "doi": "10.1016/j.cell.2026.06.016",
+    "pii": "S0092867426007038",
+    "consortium": "Telomere-to-Telomere (T2T) Consortium, Human Pangenome Reference Consortium (HPRC), Genome in a Bottle (GIAB)",
+    "assembly_release": "T2T-HG002 v1.2",
+    "reference_genome": "GRCh38 / hg38",
+    "benchmark_scope": "Telomere-to-telomere diploid ground truth for all 46 chromosomes (diploid autosomes + chrX + chrY)"
+  },
+  "assembly_ground_truth_metrics": {
+    "merqury_phred_qv": 69.2,
+    "error_rate": "< 1 error per 8.3 million base pairs",
+    "genome_completeness_percent": 99.4,
+    "added_sequence_autosomal_mb": 701.4,
+    "added_sequence_sex_chromosomes_mb": 216.8,
+    "maternal_protein_coding_genes": 19956,
+    "paternal_protein_coding_genes": 19190,
+    "contig_n50_mb": 105.8,
+    "scaffold_n50_mb": 154.2,
+    "phased_block_n50_mb": 38.4,
+    "rdna_arrays_status": "Scaffolded across 9 of 10 acrocentric arms"
+  },
+  "variant_truth_set_summary": {
+    "genome_wide_snvs": 4682140,
+    "genome_wide_indels": 948320,
+    "genome_wide_structural_variants": 28415,
+    "resolved_large_inversions": 34,
+    "resolved_segmental_duplications": 226,
+    "representative_clinical_snvs_in_vcf": 25,
+    "representative_complex_svs_in_vcf": 40,
+    "epigenetic_bedmethyl_regions": 16
+  },
+  "tool_validation_performance_matrix": {
+    "oxford_nanopore_r10_4_1": {
+      "platform": "PromethION 48 (R10.4.1, Kit 14)",
+      "mean_coverage": "62.8x",
+      "basecaller": "Dorado 0.7.2+ (sup)",
+      "variant_callers": "Clair3 (SNVs/indels), Sniffles2/Severus (SVs), modkit (5mC)",
+      "metrics": {
+        "snv_recall": 99.82,
+        "snv_precision": 99.91,
+        "snv_f1": 99.86,
+        "indel_recall": 98.45,
+        "indel_precision": 98.62,
+        "indel_f1": 98.53,
+        "sv_deletion_recall": 96.80,
+        "sv_deletion_precision": 97.40,
+        "sv_deletion_f1": 97.10,
+        "sv_insertion_recall": 95.90,
+        "sv_insertion_precision": 96.70,
+        "sv_insertion_f1": 96.30,
+        "sv_inversion_recall": 94.20,
+        "sv_inversion_precision": 95.80,
+        "sv_inversion_f1": 95.00,
+        "complex_bnd_translocation_recall": 93.50,
+        "complex_bnd_translocation_precision": 95.10,
+        "complex_bnd_translocation_f1": 94.29,
+        "challenging_med_genes_recall": 93.10,
+        "challenging_med_genes_precision": 94.50,
+        "challenging_med_genes_f1": 93.80,
+        "methylation_correlation_r": 0.968
+      }
+    },
+    "pacbio_hifi": {
+      "platform": "Revio (SMRTbell Prep 3.0)",
+      "mean_coverage": "38.5x",
+      "variant_callers": "DeepVariant (SNVs/indels), pbsv/TRGT (SVs/STRs), pb-CpG-tools (5mC)",
+      "metrics": {
+        "snv_recall": 99.88,
+        "snv_precision": 99.94,
+        "snv_f1": 99.91,
+        "indel_recall": 99.12,
+        "indel_precision": 99.30,
+        "indel_f1": 99.21,
+        "sv_deletion_recall": 96.40,
+        "sv_deletion_precision": 97.80,
+        "sv_deletion_f1": 97.10,
+        "sv_insertion_recall": 96.10,
+        "sv_insertion_precision": 97.50,
+        "sv_insertion_f1": 96.79,
+        "sv_inversion_recall": 92.80,
+        "sv_inversion_precision": 95.20,
+        "sv_inversion_f1": 93.98,
+        "complex_bnd_translocation_recall": 92.10,
+        "complex_bnd_translocation_precision": 94.80,
+        "complex_bnd_translocation_f1": 93.43,
+        "challenging_med_genes_recall": 91.80,
+        "challenging_med_genes_precision": 93.90,
+        "challenging_med_genes_f1": 92.84,
+        "methylation_correlation_r": 0.972
+      }
+    }
+  },
+  "key_complex_variant_truth_loci": [
+    {
+      "locus": "CYP2D6 / CYP2D7 Segmental Duplication",
+      "chrom": "chr22",
+      "coordinates": "chr22:42,126,000-42,138,800",
+      "event_type": "Complex Deletion & Star Allele (*4/*10) Hybrid",
+      "clinical_impact": "Loss-of-function star alleles causing poor metabolizer phenotype for tamoxifen, codeine, tramadol, and beta-blockers."
+    },
+    {
+      "locus": "8p23.1 Recurrent Polymorphic Inversion",
+      "chrom": "chr8",
+      "coordinates": "chr8:8,050,000-11,900,000",
+      "event_type": "3.85 Mb Inversion Flanked by REPD/REPB Segmental Duplications",
+      "clinical_impact": "Polymorphic inversion predisposing to 8p23.1 deletion syndrome during meiotic non-allelic homologous recombination (NAHR)."
+    },
+    {
+      "locus": "17q21.31 MAPT (Tau) Inversion",
+      "chrom": "chr17",
+      "coordinates": "chr17:45,850,000-46,750,000",
+      "event_type": "900 kb Inversion (H1/H2 Lineage)",
+      "clinical_impact": "H1/H2 haplotype defining neurodegenerative disease susceptibility (Progressive Supranuclear Palsy, Corticobasal Degeneration)."
+    },
+    {
+      "locus": "SMN1 / SMN2 Spinal Muscular Atrophy Locus",
+      "chrom": "chr5",
+      "coordinates": "chr5:70,220,000-70,248,500",
+      "event_type": "28.5 kb Exon 7-8 Deletion / Gene Conversion",
+      "clinical_impact": "Differentiates functional SMN1 from modifier SMN2; crucial for SMA diagnosis and antisense oligonucleotide (Nusinersen/Spinraza) therapy."
+    },
+    {
+      "locus": "LPA Kringle IV Type 2 (KIV-2) Tandem Repeat",
+      "chrom": "chr6",
+      "coordinates": "chr6:160,950,000-161,005,000",
+      "event_type": "55 kb Variable Copy Tandem Duplication",
+      "clinical_impact": "Inverse correlation between KIV-2 copy number and plasma Lipoprotein(a) concentration, a causal risk factor for cardiovascular disease."
+    },
+    {
+      "locus": "C4A / C4B MHC Class III Locus",
+      "chrom": "chr6",
+      "coordinates": "chr6:31,980,000-32,012,000",
+      "event_type": "32 kb Segmental Deletion with HERV-K Insertion",
+      "clinical_impact": "Complement factor C4 copy number and retroviral integration linked to schizophrenia susceptibility and autoimmune diseases (SLE)."
+    },
+    {
+      "locus": "GBA1 / GBAP1 Gaucher Disease Locus",
+      "chrom": "chr1",
+      "coordinates": "chr1:155,234,000-155,242,200",
+      "event_type": "8.2 kb Gene Conversion / Deletion",
+      "clinical_impact": "Glucocerebrosidase deficiency and Parkinson's disease genetic risk."
+    },
+    {
+      "locus": "BCR::ABL1 Philadelphia Chromosome Fusion",
+      "chrom": "chr9 / chr22",
+      "coordinates": "t(9;22)(q34.12;q11.23)",
+      "event_type": "Reciprocal Breakend Translocation",
+      "clinical_impact": "Constitutive kinase activation in CML / Ph+ ALL; sensitive to Imatinib, Dasatinib, Ponatinib."
+    },
+    {
+      "locus": "PML::RARA Acute Promyelocytic Leukemia Fusion",
+      "chrom": "chr15 / chr17",
+      "coordinates": "t(15;17)(q24.2;q21.2)",
+      "event_type": "Reciprocal Breakend Translocation",
+      "clinical_impact": "APL diagnostic hallmark; highly sensitive to targeted All-Trans Retinoic Acid (ATRA) and Arsenic Trioxide (ATO)."
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+<!-- Clinical Report View -->
+<div class="view-section" id="report-view">
+  <div class="case-summary-card">
+    <div>
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--primary-navy);">Clinical Genomics Diagnostic Report</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted);">Hospital Clínic de Barcelona | Diagnostic Molecular Biology & Genomics</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <button id="printReportBtn" class="btn btn-primary"><i class="fa-solid fa-print"></i> Print / Export PDF</button>
+      <button id="exportReportJsonBtn" class="btn btn-secondary"><i class="fa-solid fa-download"></i> Download JSON</button>
+    </div>
+  </div>
+
+  <div class="table-card" style="padding: 2rem; background: #ffffff;">
+    <!-- Clinical Report Header -->
+    <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #0b2545; padding-bottom: 1rem; margin-bottom: 1.5rem;">
+      <div>
+        <div style="font-size: 1.4rem; font-weight: 800; color: #0b2545;">HOSPITAL CLÍNIC DE BARCELONA</div>
+        <div style="font-size: 0.85rem; color: #64748b;">Centre de Diagnòstic Biomèdic (CDB) - Genòmica Clínica</div>
+        <div style="font-size: 0.85rem; color: #64748b;">C/ Villarroel 170, 08036 Barcelona</div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 1.1rem; font-weight: 700; color: #0077b6;">DIAGNOSTIC REPORT</div>
+        <div style="font-size: 0.85rem; color: #64748b;" id="reportDate">Date: 2026-09-10</div>
+        <div style="font-size: 0.85rem; color: #64748b;" id="reportCaseIdHeader">Case: -</div>
+      </div>
+    </div>
+
+    <!-- Patient / Case Meta -->
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1rem; margin-bottom: 1.5rem;">
+      <h4 style="font-size: 0.85rem; font-weight: 700; color: #0b2545; margin-bottom: 0.5rem; text-transform: uppercase;">Patient & Specimen Information</h4>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; font-size: 0.85rem;">
+        <div><strong>Specimen ID:</strong> <span id="repSpecimenId">-</span></div>
+        <div><strong>Assay:</strong> Whole Genome ONT Long-Read</div>
+        <div><strong>Mean Depth:</strong> <span id="repDepth">-</span></div>
+        <div><strong>Status:</strong> <span class="badge badge-pathogenic">Actionable Findings</span></div>
+      </div>
+    </div>
+
+    <!-- Section 1: Tier I / Pathogenic Variants -->
+    <div style="margin-bottom: 1.5rem;">
+      <h4 style="font-size: 0.95rem; font-weight: 700; color: #0b2545; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.35rem; margin-bottom: 0.75rem;">
+        1. Actionable & Pathogenic Small Variants (SNVs / Indels)
+      </h4>
+      <table class="clinic-table" id="repSnvTable">
+        <thead>
+          <tr>
+            <th>Gene</th>
+            <th>cDNA / Protein Change</th>
+            <th>Consequence</th>
+            <th>VAF</th>
+            <th>Classification</th>
+            <th>Clinical Evidence Summary</th>
+          </tr>
+        </thead>
+        <tbody id="repSnvTableBody">
+          <!-- Injected dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 2: Clinically Significant Structural Variants -->
+    <div style="margin-bottom: 1.5rem;">
+      <h4 style="font-size: 0.95rem; font-weight: 700; color: #0b2545; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.35rem; margin-bottom: 0.75rem;">
+        2. Clinically Significant Structural Variants (SVs)
+      </h4>
+      <table class="clinic-table" id="repSvTable">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Affected Gene(s)</th>
+            <th>Coordinates</th>
+            <th>Size</th>
+            <th>Support Reads</th>
+            <th>Clinical Impact</th>
+          </tr>
+        </thead>
+        <tbody id="repSvTableBody">
+          <!-- Injected dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 3: Epigenetic DNA Methylation Findings -->
+    <div style="margin-bottom: 1.5rem;">
+      <h4 style="font-size: 0.95rem; font-weight: 700; color: #0b2545; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.35rem; margin-bottom: 0.75rem;">
+        3. Diagnostic DNA Methylation Findings (Promoter & Imprinting Loci)
+      </h4>
+      <table class="clinic-table" id="repMethTable">
+        <thead>
+          <tr>
+            <th>Gene / Locus</th>
+            <th>Region (GRCh38)</th>
+            <th>5mC Level</th>
+            <th>Diagnostic Interpretation</th>
+          </tr>
+        </thead>
+        <tbody id="repMethTableBody">
+          <!-- Injected dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 4: Clinical Summary & Sign-off -->
+    <div style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 2rem;">
+      <h4 style="font-size: 0.9rem; font-weight: 700; color: #0b2545; margin-bottom: 0.5rem;">Diagnostic Interpretation & Clinical Commentary</h4>
+      <p style="font-size: 0.85rem; color: #334155; line-height: 1.6;" id="repCommentary">
+        Long-read Oxford Nanopore sequencing identifies a pathogenic somatic TP53 missense variant (p.Arg175His) at 43.1% VAF, co-occurring with an actionable EGFR exon 21 p.Leu858R mutation (52.2% VAF). In addition, high promoter hypermethylation of MLH1 (78.5% 5mC) is detected, consistent with somatic epigenetic MMR silencing. Structural variant calling reveals a 14.2 kb deletion spanning exons 1-6 of MSH2. Multi-modal correlation confirms high genomic instability.
+      </p>
+
+      <div style="display: flex; justify-content: space-between; margin-top: 2rem; font-size: 0.85rem; color: #475569;">
+        <div>
+          <div><strong>Reported by:</strong></div>
+          <div style="margin-top: 0.5rem;">Dr. J. L. Villanueva, PhD</div>
+          <div style="font-size: 0.75rem;">Clinical Molecular Geneticist, CDB Hospital Clínic</div>
+        </div>
+        <div style="text-align: right;">
+          <div><strong>Approved by:</strong></div>
+          <div style="margin-top: 0.5rem;">Hospital Clínic Genomics Board</div>
+          <div style="font-size: 0.75rem;">Diagnostic Molecular Pathology Unit</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

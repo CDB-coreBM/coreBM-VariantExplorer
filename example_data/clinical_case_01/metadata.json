@@ -1,0 +1,21 @@
+{
+  "case_id": "ONT-CLIN-2026-0042",
+  "patient_id": "HCB-ONCO-89104",
+  "patient_name": "García Márquez, Gabriel",
+  "dob": "1972-04-18",
+  "gender": "Male",
+  "sample_name": "Plasma_cfDNA_LongRead_T1",
+  "sample_type": "Plasma cfDNA / Whole Genome Long-Read",
+  "indication": "Suspected Hereditary Colorectal Cancer (Lynch Syndrome) & Secondary Glioblastoma",
+  "sequencing_tech": "Oxford Nanopore (ONT)",
+  "platform": "PromethION 24",
+  "flowcell_type": "R10.4.1 (FLO-PRO114M)",
+  "kit": "SQK-NBD114.24",
+  "basecaller": "Dorado 1.0 (sup,5mCG_5hmCG)",
+  "alignment_ref": "GRCh38 / hg38",
+  "total_reads": 38450210,
+  "mean_depth": 44.5,
+  "n50": 26400,
+  "q_score": 20.8,
+  "notes": "Multi-modal long-read interrogation of SNVs, structural variants, and epigenetic promoter methylation in single assay."
+}

@@ -1,0 +1,181 @@
+<!-- DNA Methylation Explorer View -->
+<div class="view-section" id="methylation-view">
+  <!-- Case Summary Banner -->
+  <div class="case-summary-card">
+    <div class="summary-meta-group">
+      <div class="meta-item">
+        <span class="meta-label">Modification Assay</span>
+        <span class="meta-value">ONT Direct 5mC / 5hmC (Dorado + modkit)</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Epigenetic Visualizer</span>
+        <span class="meta-value" style="color: var(--medical-teal); font-weight: 700;">Methylartist Multi-Track Studio</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Targeted Regions</span>
+        <span class="meta-value" id="methSummaryTotal">-</span>
+      </div>
+    </div>
+    
+    <div class="stat-pills">
+      <div class="stat-pill danger"><span id="pillHypermethylated">0</span> Promoter Hypermethylated</div>
+      <div class="stat-pill info"><span id="pillAsmCount">0</span> Allele-Specific Methylation (ASM)</div>
+      <div class="stat-pill success"><span id="pillNormalMeth">0</span> Normal / Unmethylated</div>
+    </div>
+  </div>
+
+  <!-- Methylartist Epigenetic Studio -->
+  <div class="card" style="margin-bottom: 1.25rem; border: 1px solid var(--border-color); background: var(--bg-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
+    <div style="background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--medical-teal);">
+      <div style="display: flex; align-items: center; gap: 0.65rem;">
+        <span class="hospital-badge" style="background: #00a896; font-size: 0.7rem;">METHYLARTIST</span>
+        <h3 style="color: #ffffff; font-size: 1.05rem; font-weight: 700; margin: 0;">Epigenetic Locus & Phased Segplot Studio</h3>
+      </div>
+      
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <span style="font-size: 0.8rem; color: #94a3b8; font-weight: 600;">Locus Presets:</span>
+        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="loadMethylartistPreset('MLH1', 'chr3', 36993100, 36993600)">MLH1</button>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="loadMethylartistPreset('MGMT', 'chr10', 129467200, 129467500)">MGMT</button>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="loadMethylartistPreset('BRCA1', 'chr17', 43125300, 43125600)">BRCA1</button>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="loadMethylartistPreset('CDKN2A', 'chr9', 21994100, 21994500)">CDKN2A</button>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #0284c7; color: #38bdf8;" onclick="loadMethylartistPreset('H19/IGF2', 'chr11', 1977700, 1982700)">H19/IGF2 (ASM)</button>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #0284c7; color: #38bdf8;" onclick="loadMethylartistPreset('SNRPN', 'chr15', 24955000, 24960000)">SNRPN (ASM)</button>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #0284c7; color: #38bdf8;" onclick="loadMethylartistPreset('PEG3', 'chr19', 56845000, 56850000)">PEG3 (ASM)</button>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #0284c7; color: #38bdf8;" onclick="loadMethylartistPreset('GNAS', 'chr20', 58850000, 58855000)">GNAS (ASM)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Methylartist Controls Bar -->
+    <div style="background: #0f172a; padding: 0.65rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid #1e293b;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <div style="position: relative; display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #38bdf8; font-weight: 700;">Gene:</span>
+          <div style="position: relative;">
+            <input type="text" id="maGeneInput" value="MLH1" class="filter-control" style="width: 120px; background: #1e293b; color: #ffffff; border-color: #0284c7; padding: 0.25rem 0.5rem; font-size: 0.8rem;" autocomplete="off" placeholder="Gene symbol...">
+            <div id="maGeneDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; width: 260px; background: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; max-height: 240px; overflow-y: auto; z-index: 1000; box-shadow: 0 10px 25px rgba(0,0,0,0.6);"></div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Chrom:</span>
+          <input type="text" id="maChromInput" value="chr3" class="filter-control" style="width: 75px; background: #1e293b; color: #ffffff; border-color: #334155; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Start:</span>
+          <input type="number" id="maStartInput" value="36993100" class="filter-control" style="width: 110px; background: #1e293b; color: #ffffff; border-color: #334155; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">End:</span>
+          <input type="number" id="maEndInput" value="36993600" class="filter-control" style="width: 110px; background: #1e293b; color: #ffffff; border-color: #334155; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+        </div>
+        
+        <button id="maRenderBtn" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">
+          <i class="fa-solid fa-paintbrush"></i> Render Plot
+        </button>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <button id="maDownloadSvgBtn" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" title="Download High-Resolution Publication SVG">
+          <i class="fa-solid fa-download"></i> SVG Export
+        </button>
+        <button id="maZoomInBtn" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" title="Zoom In Locus">
+          <i class="fa-solid fa-magnifying-glass-plus"></i>
+        </button>
+        <button id="maZoomOutBtn" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" title="Zoom Out Locus">
+          <i class="fa-solid fa-magnifying-glass-minus"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Methylartist SVG Plot Canvas -->
+    <div style="padding: 1rem; background: #070c18; min-height: 480px; display: flex; justify-content: center; align-items: center;" id="methylartistContainer">
+      <div style="color: #94a3b8; text-align: center;">
+        <div class="spinner" style="margin: 0 auto 0.75rem auto;"></div>
+        Loading methylartist epigenetic plot...
+      </div>
+    </div>
+
+    <!-- Track Explanation Legend Bar -->
+    <div style="background: #0f172a; padding: 0.65rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; font-size: 0.75rem; color: #94a3b8; flex-wrap: wrap; gap: 0.5rem;">
+      <div style="display: flex; gap: 1.25rem; flex-wrap: wrap;">
+        <span><strong style="color: #ef4444;"><i class="fa-solid fa-circle" style="font-size: 0.65rem;"></i> Methylated 5mC</strong> (Hypermethylated &gt;60%)</span>
+        <span><strong style="color: #0284c7;"><i class="fa-solid fa-wave-square"></i> HP1</strong> (Maternal / Allele 1)</span>
+        <span><strong style="color: #e85d04;"><i class="fa-solid fa-wave-square"></i> HP2</strong> (Paternal / Allele 2)</span>
+        <span><strong style="color: #a78bfa;"><i class="fa-solid fa-bars-staggered"></i> Segplot</strong> (Phased Single-Read 5mC Pileup)</span>
+        <span><strong style="color: #02c39a;"><i class="fa-solid fa-draw-polygon"></i> CpG Island</strong></span>
+      </div>
+      <div>
+        <span style="color: #64748b;">Powered by Dorado 5mCG + modkit bedMethyl standard</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Toolbar for Table -->
+  <div class="filter-card">
+    <div class="filter-row">
+      <div class="filter-input-group" style="position: relative;">
+        <span class="filter-label">Search Gene:</span>
+        <div style="position: relative;">
+          <input type="text" id="methGeneFilter" class="filter-control" placeholder="e.g. MLH1, MGMT..." style="width: 140px;" autocomplete="off">
+          <div id="methFilterDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; width: 220px; background: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 10px 25px rgba(0,0,0,0.6);"></div>
+        </div>
+      </div>
+      
+      <div class="filter-input-group">
+        <span class="filter-label">Clinical Target:</span>
+        <select id="methTargetFilter" class="filter-control">
+          <option value="">All Regions</option>
+          <option value="MLH1">MLH1 Promoter (Lynch/CRC)</option>
+          <option value="MGMT">MGMT Promoter (Glioblastoma)</option>
+          <option value="BRCA1">BRCA1 Promoter (Breast/Ovarian)</option>
+          <option value="CDKN2A">CDKN2A Promoter (p16INK4a)</option>
+          <option value="H19/IGF2">H19/IGF2 ICR1 (BWS / SRS)</option>
+          <option value="SNRPN">SNRPN PWS/AS ICR (Prader-Willi)</option>
+          <option value="PEG3">PEG3 ICR (Imprinting)</option>
+          <option value="GNAS">GNAS ICR (Pseudohypoparathyroidism)</option>
+        </select>
+      </div>
+
+      <div class="filter-input-group">
+        <span class="filter-label">Min Methylation %:</span>
+        <input type="number" id="methMinPercentFilter" class="filter-control" min="0" max="100" step="5" placeholder="0" style="width: 70px;">
+      </div>
+
+      <div class="filter-input-group">
+        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+          <input type="checkbox" id="methAsmOnlyFilter"> ASM Imprinting Only
+        </label>
+      </div>
+
+      <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+        <button id="methApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
+        <button id="methResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-responsive">
+      <table class="clinic-table" id="methTable">
+        <thead>
+          <tr>
+            <th>Gene / Locus</th>
+            <th>Region (GRCh38)</th>
+            <th>Region Type</th>
+            <th>Mean 5mC %</th>
+            <th>CpG Sites</th>
+            <th>Valid Read Coverage</th>
+            <th>Clinical Significance</th>
+            <th>ASM Imprinting Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="methTableBody">
+          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading methylation data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

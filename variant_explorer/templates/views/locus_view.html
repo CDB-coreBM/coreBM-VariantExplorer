@@ -1,0 +1,165 @@
+<!-- Truly Interactive IGV Multi-Track Genomic Browser View -->
+<div class="view-section" id="locus-view">
+  <!-- Case & Browser Summary Banner -->
+  <div class="case-summary-card">
+    <div class="summary-meta-group">
+      <div class="meta-item">
+        <span class="meta-label">Reference Genome Build</span>
+        <span class="meta-value" style="color: #38bdf8; font-weight: 800;">
+          <i class="fa-solid fa-book-atlas"></i> GRCh38 / hg38 (NCBI RefSeq GCF_000001405.40)
+        </span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Sequencing Platform</span>
+        <span class="meta-value">Oxford Nanopore (ONT R10.4.1 PromethION)</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Browser Engine</span>
+        <span class="meta-value" style="color: #00a896; font-weight: 800;">
+          <i class="fa-solid fa-dna"></i> Broad IGV.js v2.15 (Base-Pair Nucleotide Resolution)
+        </span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Active Streaming Tracks</span>
+        <span class="meta-value" style="color: #f59e0b; font-weight: 700;">
+          Ref Nucleotides | RefSeq Genes | Phased BAM (HP1/HP2) | WGS SV Benchmark (74k) | WGS SmallVar v4.2.1 | CMRG Genes
+        </span>
+      </div>
+    </div>
+    
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+      <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Locus Presets:</span>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="jumpToIgvPreset('TP53')">TP53</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="jumpToIgvPreset('BRCA1')">BRCA1</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="jumpToIgvPreset('MLH1')">MLH1</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="jumpToIgvPreset('MSH2')">MSH2</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="jumpToIgvPreset('CYP2D6')">CYP2D6</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="jumpToIgvPreset('EGFR')">EGFR</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #00a896; color: #5eead4;" onclick="jumpToIgvPreset('HBA')">HBA1/HBA2</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #ef4444; color: #f87171;" onclick="jumpToIgvPreset('BCR-ABL1')">BCR::ABL1 (Fusion)</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #a855f7; color: #c084fc;" onclick="jumpToIgvPreset('8p23.1-INV')">8p23.1 (INV)</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; border-color: #0284c7; color: #38bdf8;" onclick="jumpToIgvPreset('H19-ASM')">H19 (ASM)</button>
+    </div>
+  </div>
+
+  <!-- Main IGV Browser Card -->
+  <div class="card" style="margin-bottom: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
+    
+    <!-- IGV Controls & Navigation Bar -->
+    <div style="background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--medical-teal); flex-wrap: wrap; gap: 0.75rem;">
+      
+      <!-- Coordinate Form & Dynamic Gene Search -->
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <!-- Live Gene Search Autocomplete -->
+        <div style="position: relative; display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #38bdf8; font-weight: 700;"><i class="fa-solid fa-magnifying-glass"></i> Gene:</span>
+          <div style="position: relative;">
+            <input type="text" id="locusGeneSearchInput" class="filter-control" placeholder="Search gene (e.g. BRCA1, PKD1, EGFR)..." style="width: 220px; background: #1e293b; color: #ffffff; border-color: #0284c7; padding: 0.25rem 0.5rem; font-size: 0.8rem;" autocomplete="off">
+            <div id="locusGeneDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; width: 280px; background: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; max-height: 240px; overflow-y: auto; z-index: 1000; box-shadow: 0 10px 25px rgba(0,0,0,0.6);"></div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #cbd5e1; font-weight: 700;">Chr:</span>
+          <input type="text" id="locusChromInput" class="filter-control" value="chr17" style="width: 75px; background: #1e293b; color: #ffffff; border-color: #334155; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #cbd5e1; font-weight: 700;">Start:</span>
+          <input type="number" id="locusStartInput" class="filter-control" value="7668000" style="width: 110px; background: #1e293b; color: #ffffff; border-color: #334155; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-size: 0.75rem; color: #cbd5e1; font-weight: 700;">End:</span>
+          <input type="number" id="locusEndInput" class="filter-control" value="7688000" style="width: 110px; background: #1e293b; color: #ffffff; border-color: #334155; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+        </div>
+        
+        <button id="locusRenderBtn" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: 700;">
+          <i class="fa-solid fa-magnifying-glass-location"></i> Jump Locus
+        </button>
+      </div>
+
+      <!-- Pan & Zoom Navigation Buttons -->
+      <div style="display: flex; align-items: center; gap: 0.35rem;">
+        <button id="locusPanLeftBtn" class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.8rem;" title="Pan Left 25%">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <button id="locusPanRightBtn" class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.8rem;" title="Pan Right 25%">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button id="locusZoomInBtn" class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.8rem;" title="Zoom In (+50%)">
+          <i class="fa-solid fa-magnifying-glass-plus"></i>
+        </button>
+        <button id="locusZoomOutBtn" class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.8rem;" title="Zoom Out (-50%)">
+          <i class="fa-solid fa-magnifying-glass-minus"></i>
+        </button>
+        <button id="locusResetViewBtn" class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.75rem;" title="Reset View">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
+        <button id="locusReloadIgvBtn" class="btn btn-teal" style="padding: 0.25rem 0.65rem; font-size: 0.75rem; margin-left: 0.5rem;" title="Reload Native IGV.js Tracks">
+          <i class="fa-solid fa-arrows-rotate"></i> Reload Tracks
+        </button>
+      </div>
+    </div>
+
+    <!-- Track Toggles Sub-bar -->
+    <div style="background: #0f172a; padding: 0.5rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; font-size: 0.75rem; color: #cbd5e1; flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <span style="font-weight: 700; color: #94a3b8;"><i class="fa-solid fa-sliders"></i> Active Tracks:</span>
+        <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+          <input type="checkbox" id="trackToggleGenes" checked>
+          <span style="color: #38bdf8; font-weight: 600;"><i class="fa-solid fa-code-commit"></i> RefSeq Genes</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+          <input type="checkbox" id="trackToggleCoverage" checked>
+          <span style="color: #00a896; font-weight: 600;"><i class="fa-solid fa-chart-area"></i> ONT Depth Coverage</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+          <input type="checkbox" id="trackToggleSnv" checked>
+          <span style="color: #f59e0b; font-weight: 600;"><i class="fa-solid fa-circle-dot"></i> Small Variants (SNVs)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+          <input type="checkbox" id="trackToggleSv" checked>
+          <span style="color: #ef4444; font-weight: 600;"><i class="fa-solid fa-arrows-split-up-and-left"></i> Structural Variants (SVs)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+          <input type="checkbox" id="trackToggleMeth" checked>
+          <span style="color: #10b981; font-weight: 600;"><i class="fa-solid fa-fingerprint"></i> DNA Methylation (5mC)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; background: rgba(56, 189, 248, 0.12); padding: 0.15rem 0.45rem; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.35);" title="Unchecked by default to prevent high memory/CPU usage. Click to stream phased alignments.">
+          <input type="checkbox" id="trackToggleBam">
+          <span style="color: #38bdf8; font-weight: 700;"><i class="fa-solid fa-align-left"></i> Phased BAM (On Demand)</span>
+        </label>
+      </div>
+
+      <div id="igvStatusIndicator" style="font-size: 0.75rem; color: #10b981; font-weight: 600;">
+        <i class="fa-solid fa-circle-check"></i> IGV Multi-Track Active
+      </div>
+    </div>
+
+    <!-- IGV Browser Mount Point -->
+    <div id="igvBrowserContainer" style="min-height: 540px; background: #070c18; padding: 1rem; position: relative;">
+      <div style="text-align: center; color: #94a3b8; padding: 5rem 1rem;">
+        <div class="spinner" style="margin: 0 auto 0.75rem auto;"></div>
+        Initializing IGV.js multi-track genomic viewer...
+      </div>
+    </div>
+
+    <!-- Active Variant Popover Inspector Panel -->
+    <div id="igvVariantInspector" style="background: #0f172a; border-top: 1px solid #1e293b; padding: 0.85rem 1.25rem; display: none;">
+      <!-- Populated dynamically when user clicks a variant, SV, or methylation peak in IGV -->
+    </div>
+
+    <!-- Footer Legend -->
+    <div style="background: #090e1a; padding: 0.6rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; font-size: 0.72rem; color: #94a3b8; flex-wrap: wrap; gap: 0.5rem;">
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <span><strong style="color: #ef4444;"><i class="fa-solid fa-square" style="font-size: 0.65rem;"></i> Pathogenic / DEL</strong></span>
+        <span><strong style="color: #0284c7;"><i class="fa-solid fa-square" style="font-size: 0.65rem;"></i> DUP / Genes</strong></span>
+        <span><strong style="color: #a855f7;"><i class="fa-solid fa-square" style="font-size: 0.65rem;"></i> Inversion (INV)</strong></span>
+        <span><strong style="color: #f59e0b;"><i class="fa-solid fa-square" style="font-size: 0.65rem;"></i> Translocation (BND) / VUS</strong></span>
+        <span><strong style="color: #10b981;"><i class="fa-solid fa-square" style="font-size: 0.65rem;"></i> Benign / 5mC ASM</strong></span>
+      </div>
+      <div>
+        <span>Navigation: Click &amp; drag to pan | Double click to zoom in | Click any feature to inspect</span>
+      </div>
+    </div>
+  </div>
+</div>

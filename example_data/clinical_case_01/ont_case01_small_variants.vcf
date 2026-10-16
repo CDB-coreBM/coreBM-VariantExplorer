@@ -1,0 +1,19 @@
+##fileformat=VCFv4.2
+##source=Clair3_v1.0.8_ONT_R10.4.1_sup
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw Read Depth">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
+##INFO=<ID=CSQ,Number=.,Type=String,Description="Consequence annotations from Ensembl VEP. Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|gnomAD_AF|CLIN_SIG|CADD_PHRED|REVEL|SpliceAI_DS_max">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles">
+##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele fraction">
+##FORMAT=<ID=PS,Number=1,Type=String,Description="Phase set identifier">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	ONT_CLINICAL_01
+chr17	7674220	rs28934578	G	A	999	PASS	DP=48;AF=0.48;CSQ=A|missense_variant|HIGH|TP53|ENSG00000141510|Transcript|ENST00000269305|protein_coding|5/11||c.524G>A|p.Arg175His|711|524|175|R/H|cGc/cAc|0.00002|Pathogenic|33.0|0.92|0.02	GT:GQ:DP:AD:AF:PS	0|1:99:48:25,23:0.48:7670000
+chr17	43070942	rs80357906	C	CT	850	PASS	DP=42;AF=0.45;CSQ=CT|frameshift_variant|HIGH|BRCA1|ENSG00000012048|Transcript|ENST00000357654|protein_coding|19/23||c.5266dupC|p.Gln1756ProfsTer74|5385|5266|1756|Q/XP|caa/caaa|0.00008|Pathogenic|35.0|0.95|0.01	GT:GQ:DP:AD:AF:PS	1|0:95:42:23,19:0.45:43060000
+chr7	55191822	rs121434568	T	G	999	PASS	DP=54;AF=0.35;CSQ=G|missense_variant|HIGH|EGFR|ENSG00000146648|Transcript|ENST00000275493|protein_coding|21/28||c.2573T>G|p.Leu858Arg|2807|2573|858|L/R|cTg/cGg|0.00001|Pathogenic|29.5|0.88|0.01	GT:GQ:DP:AD:AF:PS	0|1:99:54:35,19:0.35:55180000
+chr12	25245350	rs121913529	C	T	999	PASS	DP=52;AF=0.42;CSQ=T|missense_variant|HIGH|KRAS|ENSG00000133703|Transcript|ENST00000311936|protein_coding|2/5||c.35G>A|p.Gly12Asp|216|35|12|G/D|gGt/gAt|0.00001|Pathogenic|28.0|0.84|0.02	GT:GQ:DP:AD:AF:PS	0|1:99:52:30,22:0.42:25240000
+chr3	36993350	rs63750447	G	A	920	PASS	DP=44;AF=0.50;CSQ=A|splice_donor_variant|HIGH|MLH1|ENSG00000093010|Transcript|ENST00000231790|protein_coding|8/19||c.677+1G>A||788||||0.00003|Pathogenic|34.0|0.90|0.98	GT:GQ:DP:AD:AF:PS	1|0:90:44:22,22:0.50:36980000
+chr11	108236100	rs144359656	A	G	420	PASS	DP=38;AF=0.47;CSQ=G|missense_variant|MODERATE|ATM|ENSG00000149311|Transcript|ENST00000278616|protein_coding|26/63||c.3812A>G|p.Asn1271Ser|4012|3812|1271|N/S|aAc/aGc|0.00210|Uncertain_significance|18.5|0.38|0.04	GT:GQ:DP:AD:AF:PS	0|1:70:38:20,18:0.47:108200000
+chr1	115256529	rs1042522	T	C	999	PASS	DP=46;AF=0.48;CSQ=C|synonymous_variant|LOW|NRAS|ENSG00000213281|Transcript|ENST00000369535|protein_coding|3/4||c.183A>G|p.Thr61=|280|183|61|T/T|acA/acG|0.48200|Benign|8.2|0.05|0.00	GT:GQ:DP:AD:AF:PS	0|1:99:46:24,22:0.48:115200000

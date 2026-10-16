@@ -1,0 +1,8 @@
+[
+  {
+    "id": "hg38",
+    "name": "Human (GRCh38 / hg38)",
+    "cytobandURL": "/static/vendor/cytoBand.txt",
+    "aliasURL": "/static/vendor/hg38_alias.tab"
+  }
+]
