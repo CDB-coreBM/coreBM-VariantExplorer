@@ -61,6 +61,11 @@
           <span>DNA Methylation</span>
           <span class="sidebar-badge" id="badgeMethCount">0</span>
         </li>
+        <li class="sidebar-item" data-view="repeats-view">
+          <i class="fa-solid fa-arrows-left-right-to-line"></i>
+          <span>Tandem Repeats</span>
+          <span class="sidebar-badge" id="badgeRepeatsCount">0</span>
+        </li>
         <li class="sidebar-item" data-view="locus-view">
           <i class="fa-solid fa-chart-line"></i>
           <span>Multi-Track Locus</span>
@@ -74,7 +79,7 @@
       <div class="sidebar-footer">
         <div><strong>Hospital Clínic de Barcelona</strong></div>
         <div style="color: #475569;">Centre de Diagnòstic Biomèdic (CDB)</div>
-        <div style="color: #00a896; margin-top: 0.25rem;">v1.0.0-PROD (ONT R10.4.1)</div>
+        <div style="color: #00a896; margin-top: 0.25rem;">v1.2.0-PROD (ONT R10.4.1)</div>
       </div>
     </nav>
 
@@ -121,6 +126,7 @@
   <script src="{{ url_for('static', filename='js/sv_viewer.js') }}"></script>
   <script src="{{ url_for('static', filename='js/circos_viewer.js') }}"></script>
   <script src="{{ url_for('static', filename='js/methylation_view.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/repeats_view.js') }}"></script>
   <script src="{{ url_for('static', filename='js/locus_track.js') }}"></script>
   <script src="{{ url_for('static', filename='js/report_builder.js') }}"></script>
   <script src="{{ url_for('static', filename='js/panel_manager.js') }}"></script>

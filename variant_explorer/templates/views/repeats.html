@@ -1,0 +1,76 @@
+<!-- Tandem Repeat Expansions (TRGT / Straglr) Dedicated Clinical View -->
+<div class="view-section" id="repeats-view">
+  <!-- Case Summary Banner -->
+  <div class="case-summary-card">
+    <div class="summary-meta-group">
+      <div class="meta-item">
+        <span class="meta-label">Genotyping Assay</span>
+        <span class="meta-value">TRGT v0.8.0 / Straglr (Single-Molecule ONT Sizing)</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Targeted STR Loci</span>
+        <span class="meta-value" id="repeatsSummaryTotal">0</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Expansion Status</span>
+        <span class="meta-value" id="repeatsSummaryStatus" style="color: #10b981; font-weight: 700;">Normal Allele Sizing</span>
+      </div>
+    </div>
+    
+    <div class="stat-pills">
+      <div class="stat-pill danger"><span id="pillRepeatsPath">0</span> Pathogenic Full Expansions</div>
+      <div class="stat-pill warning"><span id="pillRepeatsPremut">0</span> Reduced Penetrance / Premutations</div>
+      <div class="stat-pill success"><span id="pillRepeatsNorm">0</span> Normal Range Alleles</div>
+    </div>
+  </div>
+
+  <!-- Filter Toolbar -->
+  <div class="filter-card">
+    <div class="filter-row">
+      <div class="filter-input-group">
+        <span class="filter-label"><i class="fa-solid fa-magnifying-glass"></i> Search Locus:</span>
+        <input type="text" id="repeatsSearchInput" class="filter-control" placeholder="e.g. HTT, C9orf72, FMR1, Ataxia..." style="width: 220px;">
+      </div>
+      
+      <div class="filter-input-group">
+        <span class="filter-label">Expansion Status:</span>
+        <select id="repeatsStatusFilter" class="filter-control">
+          <option value="">All Expansion Statuses</option>
+          <option value="Pathogenic">Pathogenic Full Expansion</option>
+          <option value="Premutation">Reduced Penetrance / Premutation</option>
+          <option value="Intermediate">Intermediate (Mutable Normal)</option>
+          <option value="Normal">Normal Range</option>
+        </select>
+      </div>
+
+      <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+        <button id="repeatsApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
+        <button id="repeatsResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table Card -->
+  <div class="table-card">
+    <div class="table-responsive">
+      <table class="clinic-table" id="repeatsTable">
+        <thead>
+          <tr>
+            <th>Gene / Locus</th>
+            <th>Associated Disease</th>
+            <th>Repeat Motif</th>
+            <th>Allele 1 Size</th>
+            <th>Allele 2 Size</th>
+            <th>Clinical Cutoffs</th>
+            <th>Expansion Status</th>
+            <th>Clinical Assessment</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="repeatsTableBody">
+          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading tandem repeat expansions...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

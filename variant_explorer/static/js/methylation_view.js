@@ -100,26 +100,74 @@ function renderMethTable(regions) {
         <td><span style="font-size: 0.82rem;">${r.clinical_significance || 'Epigenetic biomarker'}</span></td>
         <td>${asmBadge}</td>
         <td>
-          <button class="btn btn-secondary" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;" onclick="event.stopPropagation(); inspectMethDetail('${r.id}')" title="Inspect Methylation Drawer">
-            <i class="fa-solid fa-circle-info"></i>
+          <button class="btn btn-teal" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;" onclick="event.stopPropagation(); selectMethRegion('${r.gene_symbol}', '${r.chrom}', ${r.start}, ${r.end}, '${r.id}')" title="Inspect in Methylartist Studio">
+            <i class="fa-solid fa-paintbrush"></i> Studio
           </button>
-          <button class="btn btn-teal" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;" onclick="event.stopPropagation(); selectMethRegion('${r.gene_symbol}', '${r.chrom}', ${r.start}, ${r.end}, '${r.id}')" title="Render in Methylartist">
-            <i class="fa-solid fa-paintbrush"></i>
+          <button class="btn btn-secondary" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;" onclick="event.stopPropagation(); inspectMethInLocusTrack('${r.chrom}', ${r.start}, ${r.end})" title="Inspect in Multi-Track Locus (IGV)">
+            <i class="fa-solid fa-magnifying-glass-location"></i> IGV
           </button>
+          ${(typeof isVariantInReport === 'function' && isVariantInReport(r))
+            ? `<button class="btn btn-secondary" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; opacity: 0.85; cursor: not-allowed; color: #10b981;" disabled title="Already included in clinical report"><i class="fa-solid fa-check"></i> Included</button>`
+            : `<button class="btn btn-primary" style="padding: 0.2rem 0.45rem; font-size: 0.75rem;" onclick="event.stopPropagation(); addMethToReport('${r.id}')" title="Add to Clinical Report"><i class="fa-solid fa-file-circle-plus"></i> Add</button>`
+          }
         </td>
       </tr>
     `;
   }).join('');
 }
 
+function switchMethViewMode(mode) {
+  const tableSec = document.getElementById('methTableSection');
+  const studioSec = document.getElementById('methStudioSection');
+  const tableBtn = document.getElementById('methViewTableBtn');
+  const studioBtn = document.getElementById('methViewStudioBtn');
+
+  if (mode === 'studio') {
+    if (studioSec) studioSec.style.display = 'block';
+    if (tableSec) tableSec.style.display = 'none';
+    if (studioBtn) studioBtn.className = 'btn btn-primary';
+    if (tableBtn) tableBtn.className = 'btn btn-secondary';
+  } else {
+    if (studioSec) studioSec.style.display = 'none';
+    if (tableSec) tableSec.style.display = 'block';
+    if (studioBtn) studioBtn.className = 'btn btn-secondary';
+    if (tableBtn) tableBtn.className = 'btn btn-primary';
+  }
+}
+
 function selectMethRegion(gene, chrom, start, end, id) {
+  switchMethViewMode('studio');
   loadMethylartistPlot(gene, chrom, start, end);
-  // Scroll smoothly to the methylartist studio
   const studio = document.getElementById('methylartistContainer');
   if (studio) {
     studio.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
+
+function inspectMethInLocusTrack(chrom, start, end) {
+  if (typeof switchView === 'function') {
+    switchView('locus-view');
+    const locInput = document.getElementById('locusSearchInput');
+    if (locInput) {
+      locInput.value = `${chrom}:${start}-${end}`;
+    }
+    if (typeof igvGoTo === 'function') {
+      igvGoTo(`${chrom}:${start}-${end}`);
+    }
+  }
+}
+
+window.addMethToReport = function(regionId) {
+  const r = methData.find(item => String(item.id) === String(regionId));
+  if (!r) {
+    if (typeof showToast === 'function') showToast('Methylation region not found', 'warning');
+    return;
+  }
+  if (typeof addVariantToClinicalReport === 'function') {
+    addVariantToClinicalReport(r);
+    renderMethTable(methData);
+  }
+};
 
 async function loadMethylartistPlot(gene, chrom, start, end) {
   const container = document.getElementById('methylartistContainer');
@@ -205,6 +253,7 @@ async function loadMethylartistPlot(gene, chrom, start, end) {
 }
 
 function loadMethylartistPreset(gene, chrom, start, end) {
+  switchMethViewMode('studio');
   loadMethylartistPlot(gene, chrom, start, end);
 }
 
@@ -447,6 +496,7 @@ function setupMethylationGeneAutocomplete() {
 
 document.addEventListener('DOMContentLoaded', () => {
   setupMethylationGeneAutocomplete();
+  switchMethViewMode('table');
 
   const applyBtn = document.getElementById('methApplyFilterBtn');
   if (applyBtn) applyBtn.addEventListener('click', loadMethylationRegions);

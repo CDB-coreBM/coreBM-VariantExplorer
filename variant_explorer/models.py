@@ -2,7 +2,8 @@
 
 import sqlite3
 import os
-from typing import Optional
+import json
+from typing import Optional, List, Dict, Any
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DB_PATH = os.path.join(BASE_DIR, "variant_explorer.db")
@@ -172,6 +173,50 @@ def init_db(db_path: Optional[str] = None):
         )
     """)
 
+    # 5b. Persistent Clinical Report Findings (Long-Term Case Variant Curation)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS case_report_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_id INTEGER NOT NULL,
+            finding_type TEXT NOT NULL, -- 'SNV', 'SV', 'METHYLATION', 'REPEAT'
+            variant_id TEXT NOT NULL,
+            gene_symbol TEXT,
+            chrom TEXT,
+            pos INTEGER,
+            ref TEXT,
+            alt TEXT,
+            acmg_class TEXT,
+            somatic_tier TEXT,
+            clinical_notes TEXT,
+            finding_json TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE,
+            UNIQUE (case_id, finding_type, variant_id)
+        )
+    """)
+
+    # 5c. Tandem Repeat Expansions (TRGT / Straglr Assay)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tandem_repeats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_id INTEGER NOT NULL,
+            gene_symbol TEXT NOT NULL,
+            disease TEXT,
+            motif TEXT,
+            chrom TEXT,
+            start INTEGER,
+            end INTEGER,
+            allele_1_count INTEGER,
+            allele_2_count INTEGER,
+            status TEXT,
+            clinical_significance TEXT,
+            acmg_class TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE
+        )
+    """)
+
     # 6. Gene Panels and Versioned Gene Lists
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS gene_panels (
@@ -333,6 +378,153 @@ def seed_default_gene_panels(conn: sqlite3.Connection):
                 INSERT INTO gene_panel_versions (panel_id, version_str, gene_list_json, gene_count, changelog, is_active)
                 VALUES (?, ?, ?, ?, ?, 1)
             """, (panel_id, p["version"], genes_json, len(p["genes"]), p["changelog"]))
+
+
+def get_case_report_findings(conn_or_case_id: Any, case_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Retrieve all persistent clinical report findings for a case."""
+    if isinstance(conn_or_case_id, int) or (isinstance(conn_or_case_id, str) and str(conn_or_case_id).isdigit()):
+        case_id = int(conn_or_case_id)
+        conn = get_db_connection()
+        should_close = True
+    else:
+        conn = conn_or_case_id
+        should_close = False
+
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, case_id, finding_type, variant_id, gene_symbol, chrom, pos,
+               ref, alt, acmg_class, somatic_tier, clinical_notes, finding_json, created_at, updated_at
+        FROM case_report_findings
+        WHERE case_id = ?
+        ORDER BY created_at ASC
+    """, (case_id,))
+    rows = cursor.fetchall()
+    results = []
+    for r in rows:
+        try:
+            item = json.loads(r["finding_json"])
+        except Exception:
+            item = {}
+        item["id"] = r["id"]
+        item["reportFindingId"] = r["id"]
+        item["db_id"] = r["id"]
+        item["case_id"] = r["case_id"]
+        item["finding_type"] = r["finding_type"]
+        item["variant_id"] = r["variant_id"]
+        item["gene_symbol"] = r["gene_symbol"] or item.get("gene_symbol")
+        item["acmg_class"] = r["acmg_class"] or item.get("acmg_class")
+        item["clinical_notes"] = r["clinical_notes"] or item.get("clinical_notes", "")
+        item["created_at"] = r["created_at"]
+        item["isClinicianAdded"] = True
+        results.append(item)
+    if should_close:
+        conn.close()
+    return results
+
+
+def save_case_report_finding(conn: sqlite3.Connection, case_id: int, finding: Dict[str, Any]) -> int:
+    """Save or update a persistent clinical report finding for a case."""
+    cursor = conn.cursor()
+    finding_type = "SNV"
+    if finding.get("sv_type"):
+        finding_type = "SV"
+    elif finding.get("region_type") or "mean_5mc" in finding or "percent_modified" in finding:
+        finding_type = "METHYLATION"
+    elif finding.get("motif") or "allele_1_count" in finding:
+        finding_type = "REPEAT"
+
+    variant_id = str(finding.get("id") or finding.get("variant_id") or finding.get("reportFindingId") or "")
+    if not variant_id:
+        if finding_type == "SV":
+            variant_id = f"sv_{finding.get('chrom')}:{finding.get('start')}-{finding.get('end')}:{finding.get('sv_type')}"
+        elif finding_type == "METHYLATION":
+            variant_id = f"meth_{finding.get('chrom')}:{finding.get('start')}-{finding.get('end')}:{finding.get('gene_symbol','')}"
+        elif finding_type == "REPEAT":
+            variant_id = f"rep_{finding.get('gene_symbol')}:{finding.get('motif')}"
+        else:
+            variant_id = f"snv_{finding.get('chrom')}:{finding.get('pos')}:{finding.get('ref')}>{finding.get('alt')}"
+
+    gene_symbol = finding.get("gene_symbol") or finding.get("genes_affected") or finding.get("gene") or ""
+    chrom = finding.get("chrom") or ""
+    pos = finding.get("pos") or finding.get("start")
+    ref = finding.get("ref") or ""
+    alt = finding.get("alt") or ""
+    acmg_class = finding.get("acmg_class") or finding.get("clinical_significance") or "Actionable"
+    somatic_tier = finding.get("somatic_tier") or ""
+    clinical_notes = finding.get("clinical_notes") or finding.get("interpretation") or ""
+    finding_json = json.dumps(finding)
+
+    cursor.execute("""
+        INSERT INTO case_report_findings (
+            case_id, finding_type, variant_id, gene_symbol, chrom, pos,
+            ref, alt, acmg_class, somatic_tier, clinical_notes, finding_json, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(case_id, finding_type, variant_id) DO UPDATE SET
+            acmg_class = excluded.acmg_class,
+            clinical_notes = excluded.clinical_notes,
+            finding_json = excluded.finding_json,
+            updated_at = CURRENT_TIMESTAMP
+    """, (case_id, finding_type, variant_id, gene_symbol, chrom, pos, ref, alt, acmg_class, somatic_tier, clinical_notes, finding_json))
+    conn.commit()
+
+    # In SQLite ON CONFLICT DO UPDATE, lastrowid might be 0 if an existing row was updated
+    finding_db_id = cursor.lastrowid
+    if not finding_db_id or finding_db_id <= 0:
+        cursor.execute("SELECT id FROM case_report_findings WHERE case_id = ? AND finding_type = ? AND variant_id = ?",
+                       (case_id, finding_type, variant_id))
+        row = cursor.fetchone()
+        finding_db_id = row[0] if row else None
+
+    return finding_db_id
+
+
+def delete_case_report_finding(conn_or_case_id: Any, case_id_or_finding_id: Any = None, finding_id: Any = None) -> bool:
+    """Delete a report finding by primary ID or variant_id."""
+    if finding_id is not None:
+        conn = conn_or_case_id
+        case_id = case_id_or_finding_id
+        fid = finding_id
+        should_close = False
+    else:
+        conn = get_db_connection()
+        case_id = conn_or_case_id
+        fid = case_id_or_finding_id
+        should_close = True
+
+    cursor = conn.cursor()
+    if isinstance(fid, int) or (isinstance(fid, str) and str(fid).isdigit()):
+        cursor.execute("DELETE FROM case_report_findings WHERE case_id = ? AND id = ?", (case_id, int(fid)))
+    else:
+        cursor.execute("DELETE FROM case_report_findings WHERE case_id = ? AND variant_id = ?", (case_id, str(fid)))
+    conn.commit()
+    rc = cursor.rowcount > 0
+    if should_close:
+        conn.close()
+    return rc
+
+
+def update_case_report_finding_notes(conn: sqlite3.Connection, case_id: int, finding_id: Any,
+                                     notes: str, acmg_class: Optional[str] = None) -> bool:
+    """Update clinical curation notes or ACMG classification for a saved finding."""
+    cursor = conn.cursor()
+    is_numeric = isinstance(finding_id, int) or (isinstance(finding_id, str) and str(finding_id).isdigit())
+    id_clause = "id = ?" if is_numeric else "variant_id = ?"
+    val = int(finding_id) if is_numeric else str(finding_id)
+    if acmg_class:
+        cursor.execute(f"""
+            UPDATE case_report_findings 
+            SET clinical_notes = ?, acmg_class = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE case_id = ? AND {id_clause}
+        """, (notes, acmg_class, case_id, val))
+    else:
+        cursor.execute(f"""
+            UPDATE case_report_findings 
+            SET clinical_notes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE case_id = ? AND {id_clause}
+        """, (notes, case_id, val))
+    conn.commit()
+    return cursor.rowcount > 0
 
 
 if __name__ == "__main__":

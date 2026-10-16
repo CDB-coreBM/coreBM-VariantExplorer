@@ -114,13 +114,14 @@
             </div>
 
             <!-- Add Gene Input Bar -->
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
               <input type="text" id="addGeneInput" placeholder="Enter gene symbol(s) e.g. HBA1, HBA2, ATRX (comma/space separated)..." 
                      style="background: #0f172a; border: 1px solid #475569; color: #ffffff; border-radius: 6px; padding: 0.4rem 0.65rem; font-size: 0.82rem; flex: 1; text-transform: uppercase;">
               <button class="btn btn-teal" style="padding: 0.4rem 0.85rem; font-size: 0.8rem;" onclick="addGenesToCurrentPanel()">
                 <i class="fa-solid fa-plus"></i> Add Genes
               </button>
             </div>
+            <div id="addGeneValidationFeedback" style="display: none; margin-bottom: 0.5rem; font-size: 0.75rem; border-radius: 4px; padding: 0.35rem 0.6rem;"></div>
 
             <!-- Chips Container -->
             <div id="geneChipsContainer" style="display: flex; flex-wrap: wrap; gap: 0.35rem; max-height: 160px; overflow-y: auto; padding: 0.5rem; background: #0f172a; border-radius: 6px; border: 1px solid #334155;">
@@ -218,8 +219,14 @@
           </div>
 
           <div>
-            <label class="filter-label">Initial Gene List (Comma or space separated HGNC gene symbols) *</label>
-            <textarea id="newPanelGenes" class="filter-control" rows="4" style="width: 100%; background: #0f172a; color: white; text-transform: uppercase; font-family: monospace;" placeholder="FXN, ATXN1, ATXN2, ATXN3, CACNA1A, SPG7, SETX..."></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+              <label class="filter-label" style="margin: 0;">Initial Gene List (Comma or space separated HGNC gene symbols) *</label>
+              <button type="button" class="btn btn-secondary" style="padding: 0.2rem 0.6rem; font-size: 0.72rem;" onclick="validateNewPanelGenes()">
+                <i class="fa-solid fa-check-double" style="color: #38bdf8;"></i> Validate Symbols
+              </button>
+            </div>
+            <textarea id="newPanelGenes" class="filter-control" rows="3" style="width: 100%; background: #0f172a; color: white; text-transform: uppercase; font-family: monospace;" placeholder="FXN, ATXN1, ATXN2, ATXN3, CACNA1A, SPG7, SETX..." oninput="debounceValidateNewPanelGenes()"></textarea>
+            <div id="newPanelGeneValidationStatus" style="display: none; margin-top: 0.5rem; border-radius: 6px; font-size: 0.78rem; padding: 0.6rem 0.75rem; border: 1px solid #334155;"></div>
           </div>
 
           <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">

@@ -118,6 +118,10 @@ function renderNoCaseSelectedState() {
   if (repContainer) {
     repContainer.innerHTML = '<div style="text-align: center; color: #64748b; padding: 1.5rem;">Select a case to inspect tandem repeat expansion calls.</div>';
   }
+  const repTbody = document.getElementById('repeatsTableBody');
+  if (repTbody) {
+    repTbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.75rem; color: #64748b; display: block;"></i>Please select a clinical case from the header dropdown or ingest a new sample.</td></tr>';
+  }
 }
 
 async function fetchActiveCaseDetails() {
@@ -142,9 +146,15 @@ async function fetchActiveCaseDetails() {
     updateHeaderBadges(caseData);
     updateQcView(caseData);
     
+    // Sync persistent findings from backend DB
+    if (typeof fetchCaseReportFindings === 'function') {
+      fetchCaseReportFindings(AppState.activeCaseId);
+    }
+
     if (AppState.currentView === 'qc-view') loadCaseQcAndPhasing();
     else if (AppState.currentView === 'snv-view') loadSnvVariants(true);
     else if (AppState.currentView === 'sv-view') loadSvVariants(true);
+    else if (AppState.currentView === 'repeats-view') { if (typeof loadRepeats === 'function') loadRepeats(); }
     else if (AppState.currentView === 'methylation-view') loadMethylationRegions();
     else if (AppState.currentView === 'locus-view') { if (typeof initIgvBrowser === 'function') initIgvBrowser(); }
     else if (AppState.currentView === 'report-view') updateClinicalReport(caseData);
@@ -168,6 +178,7 @@ function switchView(viewId) {
   if (viewId === 'qc-view') loadCaseQcAndPhasing();
   else if (viewId === 'snv-view') loadSnvVariants(false);
   else if (viewId === 'sv-view') loadSvVariants(false);
+  else if (viewId === 'repeats-view') { if (typeof loadRepeats === 'function') loadRepeats(); }
   else if (viewId === 'methylation-view') loadMethylationRegions();
   else if (viewId === 'locus-view') { if (typeof initIgvBrowser === 'function') initIgvBrowser(); }
   else if (viewId === 'report-view') updateClinicalReport(AppState.activeCaseData);

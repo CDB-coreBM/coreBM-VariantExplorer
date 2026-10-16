@@ -25,24 +25,24 @@
     </div>
   </div>
 
-  <!-- Circos View Mode Switcher -->
+  <!-- Structural Variant View Mode Switcher -->
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
     <div style="display: flex; gap: 0.5rem;">
-      <button id="svViewCircosBtn" class="btn btn-primary" onclick="switchSvViewMode('circos')" style="font-size: 0.82rem; font-weight: 700;">
-        <i class="fa-solid fa-circle-notch"></i> Interactive Circos (Complex SVs & Fusions)
-      </button>
-      <button id="svViewTableBtn" class="btn btn-secondary" onclick="switchSvViewMode('table')" style="font-size: 0.82rem; font-weight: 700;">
+      <button id="svViewTableBtn" class="btn btn-primary" onclick="switchSvViewMode('table')" style="font-size: 0.82rem; font-weight: 700;">
         <i class="fa-solid fa-table-list"></i> Structural Variant Callset Table
+      </button>
+      <button id="svViewCircosBtn" class="btn btn-secondary" onclick="switchSvViewMode('circos')" style="font-size: 0.82rem; font-weight: 700;">
+        <i class="fa-solid fa-circle-notch"></i> Interactive Circos (Complex SVs & Fusions)
       </button>
     </div>
 
     <div style="font-size: 0.8rem; color: var(--text-muted);">
-      <i class="fa-solid fa-circle-info"></i> Click any Circos chord or table row to inspect clinical breakpoint and fusion topology
+      <i class="fa-solid fa-circle-info"></i> Click any table row or Circos chord to inspect clinical breakpoint and fusion topology
     </div>
   </div>
 
-  <!-- Interactive Circos Studio Section -->
-  <div id="svCircosSection" class="card" style="margin-bottom: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
+  <!-- Interactive Circos Studio Section (Toggled on demand) -->
+  <div id="svCircosSection" class="card" style="display: none; margin-bottom: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
     <!-- Circos Header & Controls -->
     <div style="background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--medical-teal); flex-wrap: wrap; gap: 0.75rem;">
       <div style="display: flex; align-items: center; gap: 0.65rem;">

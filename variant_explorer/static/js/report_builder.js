@@ -70,6 +70,7 @@ function updateQcView(caseData) {
 
 function getVariantUniqueId(v) {
   if (!v) return '';
+  if (v.variant_id) return v.variant_id;
   if (v.sv_type) {
     const sStart = v.start !== undefined ? v.start : (v.pos !== undefined ? v.pos : 0);
     const sEnd = v.end !== undefined ? v.end : (v.pos2 !== undefined ? v.pos2 : sStart);
@@ -77,6 +78,9 @@ function getVariantUniqueId(v) {
   }
   if (v.region_type || v.mean_5mc !== undefined || v.percent_modified !== undefined) {
     return 'meth_' + (v.id ? v.id + '_' : '') + v.chrom + ':' + v.start + '-' + v.end + ':' + (v.gene_symbol || v.name || '');
+  }
+  if (v.motif || v.allele_1_count !== undefined) {
+    return 'repeat_' + (v.id ? v.id + '_' : '') + (v.gene_symbol || '') + ':' + (v.motif || '');
   }
   return 'snv_' + (v.id ? v.id + '_' : '') + v.chrom + ':' + v.pos + ':' + (v.ref || '') + '>' + (v.alt || '');
 }
@@ -89,8 +93,10 @@ function refreshReportFindingIdsSet() {
     AppState.customReportFindings.forEach(function(f) {
       const uid = getVariantUniqueId(f);
       if (uid) reportFindingIdsSet.add(uid);
+      if (f.variant_id) reportFindingIdsSet.add(f.variant_id);
+      if (f.reportFindingId) reportFindingIdsSet.add(String(f.reportFindingId));
       if (f.id) {
-        reportFindingIdsSet.add((f.sv_type ? 'sv_' : (f.region_type ? 'meth_' : 'snv_')) + f.id);
+        reportFindingIdsSet.add((f.sv_type ? 'sv_' : (f.region_type ? 'meth_' : (f.motif ? 'repeat_' : 'snv_'))) + f.id);
       }
     });
   }
@@ -100,8 +106,10 @@ function isVariantInReport(v) {
   if (!v || !AppState.customReportFindings || AppState.customReportFindings.length === 0) return false;
   const uid = getVariantUniqueId(v);
   if (reportFindingIdsSet.has(uid)) return true;
+  if (v.variant_id && reportFindingIdsSet.has(v.variant_id)) return true;
+  if (v.reportFindingId && reportFindingIdsSet.has(String(v.reportFindingId))) return true;
   if (v.id) {
-    const key = (v.sv_type ? 'sv_' : (v.region_type ? 'meth_' : 'snv_')) + v.id;
+    const key = (v.sv_type ? 'sv_' : (v.region_type ? 'meth_' : (v.motif ? 'repeat_' : 'snv_'))) + v.id;
     if (reportFindingIdsSet.has(key)) return true;
   }
   return false;
@@ -125,13 +133,49 @@ function updateDrawerReportButtonState() {
   }
 }
 
-function addVariantToClinicalReport(variant) {
+async function fetchCaseReportFindings(caseId) {
+  const targetId = caseId || AppState.activeCaseId;
+  if (!targetId) {
+    AppState.customReportFindings = [];
+    refreshReportFindingIdsSet();
+    updateClinicalReport();
+    return;
+  }
+  try {
+    const res = await fetch(`/api/cases/${targetId}/report_findings`);
+    if (res.ok) {
+      const data = await res.json();
+      AppState.customReportFindings = data.findings || [];
+      refreshReportFindingIdsSet();
+      updateClinicalReport();
+      updateDrawerReportButtonState();
+      if (typeof renderSvTable === 'function' && typeof svData !== 'undefined') {
+        renderSvTable(svData);
+      }
+      if (typeof renderSnvTable === 'function' && typeof snvData !== 'undefined') {
+        renderSnvTable(snvData);
+      }
+      if (typeof renderMethTable === 'function' && typeof methData !== 'undefined') {
+        renderMethTable(methData);
+      }
+      if (typeof renderRepeatsTable === 'function' && typeof repeatsData !== 'undefined') {
+        renderRepeatsTable(repeatsData);
+      }
+    }
+  } catch (err) {
+    console.warn('Notice: Error fetching case report findings:', err);
+  }
+}
+
+async function addVariantToClinicalReport(variant) {
   if (!variant) {
     showToast('No variant selected to add to report', 'warning');
     return false;
   }
-  if (!AppState.customReportFindings) {
-    AppState.customReportFindings = [];
+  const caseId = AppState.activeCaseId;
+  if (!caseId) {
+    showToast('Please select a clinical case first', 'warning');
+    return false;
   }
 
   // Detect duplicate
@@ -142,41 +186,78 @@ function addVariantToClinicalReport(variant) {
     return false;
   }
 
-  const finding = Object.assign({}, variant, {
-    reportFindingId: 'rep_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-    isClinicianAdded: true
-  });
-  AppState.customReportFindings.push(finding);
-  refreshReportFindingIdsSet();
+  const displayLabel = variant.genes_affected || variant.gene_symbol || variant.hgvsp || variant.sv_type || variant.disease || 'variant';
 
-  const displayLabel = variant.genes_affected || variant.gene_symbol || variant.hgvsp || variant.sv_type || 'variant';
-  showToast(`Added ${displayLabel} to Clinical Report findings`, 'success');
+  try {
+    const payload = Object.assign({}, variant, {
+      variant_id: getVariantUniqueId(variant)
+    });
+    const res = await fetch(`/api/cases/${caseId}/report_findings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
-  updateDrawerReportButtonState();
-  if (typeof renderSvTable === 'function' && typeof svData !== 'undefined') {
-    renderSvTable(svData);
+    if (res.ok) {
+      showToast(`Added ${displayLabel} to Clinical Report findings (persisted)`, 'success');
+      await fetchCaseReportFindings(caseId);
+      return true;
+    } else {
+      const err = await res.json();
+      showToast(`Failed to save finding: ${err.message || 'Server error'}`, 'error');
+      return false;
+    }
+  } catch (err) {
+    console.error('Error saving finding to database:', err);
+    showToast('Error persisting variant to database', 'error');
+    return false;
   }
-  if (typeof renderSnvTable === 'function' && typeof snvData !== 'undefined') {
-    renderSnvTable(snvData);
-  }
-
-  updateClinicalReport(AppState.activeCaseData);
-  return true;
 }
 
-function removeReportFinding(findingId) {
-  if (!AppState.customReportFindings) return;
-  AppState.customReportFindings = AppState.customReportFindings.filter(f => f.reportFindingId !== findingId);
-  refreshReportFindingIdsSet();
-  showToast('Removed variant from report findings', 'info');
-  updateDrawerReportButtonState();
-  if (typeof renderSvTable === 'function' && typeof svData !== 'undefined') {
-    renderSvTable(svData);
+async function removeReportFinding(findingId) {
+  const caseId = AppState.activeCaseId;
+  if (!caseId) return;
+
+  try {
+    const res = await fetch(`/api/cases/${caseId}/report_findings/${findingId}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      showToast('Removed variant from clinical report', 'info');
+      await fetchCaseReportFindings(caseId);
+    } else {
+      showToast('Failed to remove variant from report', 'error');
+    }
+  } catch (err) {
+    console.error('Error deleting finding:', err);
+    showToast('Error removing finding', 'error');
   }
-  if (typeof renderSnvTable === 'function' && typeof snvData !== 'undefined') {
-    renderSnvTable(snvData);
+}
+
+async function editFindingNotes(findingId, currentNotes, currentClass) {
+  const newNotes = prompt('Edit clinical notes / diagnostic interpretation for this finding:', currentNotes || '');
+  if (newNotes === null) return; // User cancelled
+  const caseId = AppState.activeCaseId;
+  if (!caseId) return;
+
+  try {
+    const res = await fetch(`/api/cases/${caseId}/report_findings/${findingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clinical_notes: newNotes,
+        acmg_class: currentClass
+      })
+    });
+    if (res.ok) {
+      showToast('Updated clinical interpretation notes', 'success');
+      await fetchCaseReportFindings(caseId);
+    } else {
+      showToast('Failed to update notes', 'error');
+    }
+  } catch (err) {
+    console.error('Error updating finding notes:', err);
   }
-  updateClinicalReport(AppState.activeCaseData);
 }
 
 function updateClinicalReport(caseData) {
@@ -192,9 +273,10 @@ function updateClinicalReport(caseData) {
   if (repDepth) repDepth.textContent = `${c.mean_depth ? c.mean_depth.toFixed(1) : 62.8}x (${c.platform || 'PromethION'})`;
 
   const customFindings = AppState.customReportFindings || [];
-  const customSnvs = customFindings.filter(f => !f.sv_type && !f.region_type);
-  const customSvs = customFindings.filter(f => Boolean(f.sv_type));
-  const customMeth = customFindings.filter(f => Boolean(f.region_type || f.mean_5mc !== undefined || f.percent_modified !== undefined));
+  const customSnvs = customFindings.filter(f => !f.sv_type && !f.region_type && !f.motif && f.finding_type !== 'SV' && f.finding_type !== 'METHYLATION' && f.finding_type !== 'REPEAT');
+  const customSvs = customFindings.filter(f => Boolean(f.sv_type || f.finding_type === 'SV'));
+  const customMeth = customFindings.filter(f => Boolean(f.region_type || f.mean_5mc !== undefined || f.percent_modified !== undefined || f.finding_type === 'METHYLATION'));
+  const customRepeats = customFindings.filter(f => Boolean(f.motif || f.allele_1_count !== undefined || f.finding_type === 'REPEAT'));
 
   // Render Section 1: Small Variants (SNVs / Indels)
   const repSnvTbody = document.getElementById('repSnvTableBody');
@@ -221,23 +303,29 @@ function updateClinicalReport(caseData) {
           vafStr = numVaf <= 1 ? (numVaf * 100).toFixed(1) + '%' : numVaf.toFixed(1) + '%';
         }
         const acmgClass = v.acmg_class || v.somatic_tier || v.clinical_significance || 'Actionable';
-        const acmgCriteria = v.acmg_criteria || v.clinvar_sig || v.interpretation || 'Curated by clinical geneticist for diagnostic report';
+        const acmgCriteria = v.clinical_notes || v.acmg_criteria || v.clinvar_sig || v.interpretation || 'Curated by clinical geneticist for diagnostic report';
+        const fid = v.reportFindingId || v.db_id || v.id;
 
         return `
           <tr style="background: rgba(37, 99, 235, 0.04);">
             <td>
               <strong style="color: #0b2545;">${gene}</strong>
-              <span class="badge" style="background: #2563eb; color: #fff; font-size: 0.68rem; margin-left: 0.35rem;"><i class="fa-solid fa-user-check"></i> Added</span>
+              <span class="badge" style="background: #2563eb; color: #fff; font-size: 0.68rem; margin-left: 0.35rem;"><i class="fa-solid fa-user-check"></i> Saved</span>
             </td>
             <td><strong>${hgvsp}</strong> ${hgvsc ? `<span style="color: #64748b; font-size: 0.8rem;">(${hgvsc})</span>` : ''}</td>
             <td>${typeof formatConsequence === 'function' ? formatConsequence(consequence) : consequence}</td>
             <td><strong>${vafStr}</strong></td>
             <td><span class="badge ${acmgClass.includes('Pathogenic') || acmgClass.includes('Tier I') ? 'badge-pathogenic' : 'badge-warning'}">${acmgClass}</span></td>
             <td style="font-size: 0.8rem; color: #475569;">
-              ${acmgCriteria}
-              <button class="btn btn-secondary" style="padding: 0.1rem 0.4rem; font-size: 0.7rem; float: right; border-color: #cbd5e1;" onclick="removeReportFinding('${v.reportFindingId}')" title="Remove finding">
-                <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>
-              </button>
+              <span style="display: block; margin-bottom: 0.25rem;">${acmgCriteria}</span>
+              <div style="display: flex; gap: 0.35rem; justify-content: flex-end;">
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" onclick="editFindingNotes('${fid}', '${(v.clinical_notes || '').replace(/'/g, "\\'")}', '${acmgClass}')" title="Edit diagnostic notes">
+                  <i class="fa-solid fa-pen-to-square"></i> Note
+                </button>
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; border-color: #fecdd3;" onclick="removeReportFinding('${fid}')" title="Remove finding from report">
+                  <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>
+                </button>
+              </div>
             </td>
           </tr>
         `;
@@ -267,23 +355,29 @@ function updateClinicalReport(caseData) {
         const coords = `${s.chrom}:${startPos.toLocaleString()}-${endPos.toLocaleString()}`;
         const sizeStr = s.sv_len ? (typeof formatBp === 'function' ? formatBp(Math.abs(s.sv_len)) : Math.abs(s.sv_len) + ' bp') : (endPos > startPos ? (endPos - startPos) + ' bp' : '-');
         const reads = (s.support_reads || s.depth || 0) + ' reads';
-        const impact = s.clinical_impact || s.acmg_sv_class || s.clinical_significance || 'Curated by clinical geneticist for diagnostic report';
+        const impact = s.clinical_notes || s.clinical_impact || s.acmg_sv_class || s.clinical_significance || 'Curated by clinical geneticist for diagnostic report';
+        const fid = s.reportFindingId || s.db_id || s.id;
 
         return `
           <tr style="background: rgba(37, 99, 235, 0.04);">
             <td>
               <span class="badge badge-sv-${svType.toLowerCase()}">${svType}</span>
-              <span class="badge" style="background: #2563eb; color: #fff; font-size: 0.68rem; margin-left: 0.35rem;"><i class="fa-solid fa-user-check"></i> Added</span>
+              <span class="badge" style="background: #2563eb; color: #fff; font-size: 0.68rem; margin-left: 0.35rem;"><i class="fa-solid fa-user-check"></i> Saved</span>
             </td>
             <td><strong>${gene}</strong></td>
             <td style="font-family: monospace; font-size: 0.8rem;">${coords}</td>
             <td>${sizeStr}</td>
             <td>${reads}</td>
             <td style="font-size: 0.8rem; color: #475569;">
-              ${impact}
-              <button class="btn btn-secondary" style="padding: 0.1rem 0.4rem; font-size: 0.7rem; float: right; border-color: #cbd5e1;" onclick="removeReportFinding('${s.reportFindingId}')" title="Remove finding">
-                <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>
-              </button>
+              <span style="display: block; margin-bottom: 0.25rem;">${impact}</span>
+              <div style="display: flex; gap: 0.35rem; justify-content: flex-end;">
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" onclick="editFindingNotes('${fid}', '${(s.clinical_notes || '').replace(/'/g, "\\'")}', '${s.acmg_class || ''}')" title="Edit diagnostic notes">
+                  <i class="fa-solid fa-pen-to-square"></i> Note
+                </button>
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; border-color: #fecdd3;" onclick="removeReportFinding('${fid}')" title="Remove finding from report">
+                  <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>
+                </button>
+              </div>
             </td>
           </tr>
         `;
@@ -294,44 +388,89 @@ function updateClinicalReport(caseData) {
   // Render Section 3: Epigenetic DNA Methylation Findings
   const repMethTbody = document.getElementById('repMethTableBody');
   if (repMethTbody) {
-    // If clinician added custom methylation findings, show them; otherwise show top targeted regions
-    fetch(`/api/methylation?case_id=${c.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        const dbRegions = (data.methylation_regions || data.regions || []).filter(r => 
-          (r.clinical_significance && (r.clinical_significance.includes('Hypermethylated') || r.clinical_significance.includes('Loss of Imprinting'))) ||
-          r.percent_modified > 60 || r.mean_methylated_pct > 60
-        );
-        const allMeth = [...customMeth, ...dbRegions];
-        const seenMeth = new Set();
-        const displayMeth = [];
-        allMeth.forEach(m => {
-          const key = `${m.chrom}:${m.start}:${m.end}:${m.gene_symbol || m.name}`;
-          if (!seenMeth.has(key)) {
-            seenMeth.add(key);
-            displayMeth.push(m);
-          }
-        });
+    if (customMeth.length === 0) {
+      repMethTbody.innerHTML = `
+        <tr>
+          <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            <i class="fa-solid fa-clipboard-question" style="font-size: 1.25rem; margin-bottom: 0.4rem; display: block; color: #94a3b8;"></i>
+            No DNA methylation findings currently added to this clinical report.<br>
+            <span style="font-size: 0.8rem; color: #64748b;">Navigate to <strong>DNA Methylation</strong> and click <strong>"Add to Report"</strong> on an actionable locus.</span>
+          </td>
+        </tr>
+      `;
+    } else {
+      repMethTbody.innerHTML = customMeth.map((r) => {
+        const pct = r.percent_modified !== undefined ? r.percent_modified : (r.mean_methylated_pct !== undefined ? r.mean_methylated_pct : (r.mean_5mc || 0));
+        const fid = r.reportFindingId || r.db_id || r.id;
+        const notes = r.clinical_notes || r.clinical_significance || 'Diagnostic Epigenetic Target';
+        return `
+          <tr style="background: rgba(37, 99, 235, 0.04);">
+            <td>
+              <strong>${r.gene_symbol || r.name}</strong> (${r.region_type || 'Promoter'})
+              <span class="badge" style="background: #2563eb; color: #fff; font-size: 0.68rem; margin-left: 0.35rem;"><i class="fa-solid fa-user-check"></i> Saved</span>
+            </td>
+            <td style="font-family: monospace; font-size: 0.8rem;">${r.chrom}:${r.start}-${r.end}</td>
+            <td><strong style="color: ${pct > 60 ? '#ef4444' : '#10b981'};">${Number(pct).toFixed(1)}% 5mC</strong></td>
+            <td style="font-size: 0.8rem; color: #475569;">
+              <span style="display: block; margin-bottom: 0.25rem;">${notes}</span>
+              <div style="display: flex; gap: 0.35rem; justify-content: flex-end;">
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" onclick="editFindingNotes('${fid}', '${(r.clinical_notes || '').replace(/'/g, "\\'")}', '')" title="Edit diagnostic notes">
+                  <i class="fa-solid fa-pen-to-square"></i> Note
+                </button>
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; border-color: #fecdd3;" onclick="removeReportFinding('${fid}')" title="Remove finding from report">
+                  <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
 
-        if (displayMeth.length === 0) {
-          repMethTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No abnormal promoter hypermethylation or imprinting disruptions detected.</td></tr>';
-        } else {
-          repMethTbody.innerHTML = displayMeth.map((r) => {
-            const pct = r.percent_modified !== undefined ? r.percent_modified : (r.mean_methylated_pct || 0);
-            return `
-              <tr>
-                <td><strong>${r.gene_symbol || r.name}</strong> (${r.region_type || 'Promoter'})</td>
-                <td style="font-family: monospace; font-size: 0.8rem;">${r.chrom}:${r.start}-${r.end}</td>
-                <td><strong style="color: ${pct > 60 ? '#ef4444' : '#10b981'};">${Number(pct).toFixed(1)}% 5mC</strong></td>
-                <td style="font-size: 0.8rem; color: #475569;">${r.clinical_significance || 'Curated epigenetic locus'}</td>
-              </tr>
-            `;
-          }).join('');
-        }
-      })
-      .catch(() => {
-        repMethTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No methylation regions available.</td></tr>';
-      });
+  // Render Section 4: Tandem Repeat Expansions (TRGT / Straglr)
+  const repRepeatsTbody = document.getElementById('repRepeatsTableBody');
+  if (repRepeatsTbody) {
+    if (customRepeats.length === 0) {
+      repRepeatsTbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            <i class="fa-solid fa-clipboard-question" style="font-size: 1.25rem; margin-bottom: 0.4rem; display: block; color: #94a3b8;"></i>
+            No tandem repeat expansions currently added to this clinical report.<br>
+            <span style="font-size: 0.8rem; color: #64748b;">Navigate to <strong>Tandem Repeats</strong> and click <strong>"Add to Report"</strong> on an evaluated expansion locus.</span>
+          </td>
+        </tr>
+      `;
+    } else {
+      repRepeatsTbody.innerHTML = customRepeats.map((rp) => {
+        const fid = rp.reportFindingId || rp.db_id || rp.id;
+        const notes = rp.clinical_notes || rp.clinical_significance || 'Direct long-read repeat count';
+        const st = rp.status || 'Normal';
+        return `
+          <tr style="background: rgba(37, 99, 235, 0.04);">
+            <td>
+              <strong>${rp.gene_symbol}</strong> <span style="font-size: 0.75rem; color: #64748b;">(${rp.disease || ''})</span>
+              <span class="badge" style="background: #2563eb; color: #fff; font-size: 0.68rem; margin-left: 0.35rem;"><i class="fa-solid fa-user-check"></i> Saved</span>
+            </td>
+            <td><span class="badge badge-info" style="font-family: monospace;">${rp.motif || 'TR'}</span></td>
+            <td><strong>${rp.allele_1_count || 0}</strong> repeats</td>
+            <td><strong>${rp.allele_2_count || 0}</strong> repeats</td>
+            <td><span class="badge ${st.includes('Pathogenic') ? 'badge-pathogenic' : 'badge-likely-benign'}">${st}</span></td>
+            <td style="font-size: 0.8rem; color: #475569;">
+              <span style="display: block; margin-bottom: 0.25rem;">${notes}</span>
+              <div style="display: flex; gap: 0.35rem; justify-content: flex-end;">
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" onclick="editFindingNotes('${fid}', '${(rp.clinical_notes || '').replace(/'/g, "\\'")}', '${rp.acmg_class || ''}')" title="Edit diagnostic notes">
+                  <i class="fa-solid fa-pen-to-square"></i> Note
+                </button>
+                <button class="btn btn-secondary" style="padding: 0.15rem 0.45rem; font-size: 0.7rem; border-color: #fecdd3;" onclick="removeReportFinding('${fid}')" title="Remove finding from report">
+                  <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
   }
 }
 

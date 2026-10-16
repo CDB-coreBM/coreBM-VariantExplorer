@@ -83,14 +83,19 @@ class TandemRepeatEngine:
         ref = cls.PATHOGENIC_REPEAT_LOCI.get(gene_upper)
 
         res: Dict[str, Any] = {
+            "gene": gene_upper,
             "gene_symbol": gene_upper,
             "disease": ref["disease"] if ref else "Unspecified Repeat Locus",
             "motif": motif or (ref["motif"] if ref else "TR"),
             "allele_1_count": allele_1_count,
             "allele_2_count": allele_2_count,
+            "allele1_copies": allele_1_count,
+            "allele2_copies": allele_2_count,
             "max_repeat_count": max(allele_1_count, allele_2_count),
             "status": "Normal / Non-Expanded",
-            "clinical_significance": "Negative for Repeat Expansion"
+            "expansion_status": "Normal / Non-Expanded",
+            "clinical_significance": "Negative for Repeat Expansion",
+            "locus_id": f"{gene_upper}_REPEAT"
         }
 
         if not ref:
@@ -115,4 +120,5 @@ class TandemRepeatEngine:
             res["clinical_significance"] = f"Normal allele sizes ({allele_1_count}, {allele_2_count} repeats <= {ref['normal_max']})."
             res["acmg_class"] = "Benign"
 
+        res["expansion_status"] = res["status"]
         return res

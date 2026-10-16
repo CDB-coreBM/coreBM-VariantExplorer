@@ -162,15 +162,45 @@ function renderWorkingGeneChips(filterText = '') {
   }).join('');
 }
 
-function addGenesToCurrentPanel() {
+async function validateGenesApi(genes) {
+  try {
+    const res = await fetch('/api/genes/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ genes })
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data || null;
+  } catch (e) {
+    console.error('Validation request failed:', e);
+    return null;
+  }
+}
+
+async function addGenesToCurrentPanel() {
   const input = document.getElementById('addGeneInput');
+  const feedbackEl = document.getElementById('addGeneValidationFeedback');
   if (!input) return;
   const raw = input.value.trim().toUpperCase();
   if (!raw) return;
 
   const toAdd = raw.replace(/,/g, ' ').replace(/;/g, ' ').split(/\s+/).filter((g) => g.length > 0);
-  let addedCount = 0;
+  
+  // Validate symbols against catalog
+  const valResult = await validateGenesApi(toAdd);
+  if (valResult && valResult.invalid_count > 0 && feedbackEl) {
+    const invNames = valResult.invalid_genes.map((ig) => ig.symbol).join(', ');
+    feedbackEl.style.display = 'block';
+    feedbackEl.style.background = 'rgba(239, 68, 68, 0.15)';
+    feedbackEl.style.border = '1px solid #ef4444';
+    feedbackEl.style.color = '#fca5a5';
+    feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Warning: Unrecognized gene symbol(s): <strong>${invNames}</strong>.`;
+  } else if (feedbackEl) {
+    feedbackEl.style.display = 'none';
+  }
 
+  let addedCount = 0;
   toAdd.forEach((g) => {
     if (!currentWorkingGenes.includes(g)) {
       currentWorkingGenes.push(g);
@@ -310,6 +340,99 @@ function hideNewPanelForm() {
   if (form) form.style.display = 'none';
 }
 
+let newPanelValidationTimeout = null;
+
+function debounceValidateNewPanelGenes() {
+  clearTimeout(newPanelValidationTimeout);
+  newPanelValidationTimeout = setTimeout(() => {
+    validateNewPanelGenes();
+  }, 450);
+}
+
+function replacePanelGeneSymbol(oldSymbol, newSymbol) {
+  const genesEl = document.getElementById('newPanelGenes');
+  if (!genesEl) return;
+  const regex = new RegExp(`\\b${oldSymbol}\\b`, 'gi');
+  genesEl.value = genesEl.value.replace(regex, newSymbol);
+  validateNewPanelGenes();
+}
+
+async function validateNewPanelGenes() {
+  const genesEl = document.getElementById('newPanelGenes');
+  const statusEl = document.getElementById('newPanelGeneValidationStatus');
+  if (!genesEl || !statusEl) return null;
+
+  const raw = genesEl.value.trim().toUpperCase();
+  if (!raw) {
+    statusEl.style.display = 'none';
+    statusEl.innerHTML = '';
+    return null;
+  }
+
+  const symbols = raw.replace(/,/g, ' ').replace(/;/g, ' ').split(/\s+/).filter((s) => s.length > 0);
+  if (symbols.length === 0) {
+    statusEl.style.display = 'none';
+    return null;
+  }
+
+  statusEl.style.display = 'block';
+  statusEl.style.background = '#0f172a';
+  statusEl.style.border = '1px solid #334155';
+  statusEl.style.color = '#94a3b8';
+  statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Validating gene symbols against HGNC catalog...';
+
+  const valData = await validateGenesApi(symbols);
+  if (!valData) {
+    statusEl.style.display = 'none';
+    return null;
+  }
+
+  if (valData.invalid_count === 0) {
+    statusEl.style.background = 'rgba(34, 197, 94, 0.12)';
+    statusEl.style.border = '1px solid #16a34a';
+    statusEl.style.color = '#86efac';
+    statusEl.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <i class="fa-solid fa-circle-check" style="color: #22c55e; font-size: 1rem;"></i>
+        <div>
+          <strong>Validation Passed:</strong> All ${valData.valid_count} gene symbol(s) are approved in the clinical catalog.
+        </div>
+      </div>
+    `;
+  } else {
+    statusEl.style.background = 'rgba(239, 68, 68, 0.12)';
+    statusEl.style.border = '1px solid #dc2626';
+    statusEl.style.color = '#fca5a5';
+
+    const invalidItemsHtml = valData.invalid_genes.map((inv) => {
+      let suggHtml = '';
+      if (inv.suggestions && inv.suggestions.length > 0) {
+        suggHtml = inv.suggestions.map((s) => 
+          `<button type="button" class="btn btn-secondary" style="padding: 0.1rem 0.4rem; font-size: 0.72rem; color: #38bdf8; margin-left: 0.25rem;" onclick="replacePanelGeneSymbol('${inv.symbol}', '${s}')">Use ${s}</button>`
+        ).join('');
+      }
+      return `<li style="margin-top: 0.25rem;"><span class="badge" style="background: #ef4444; color: white;">${inv.symbol}</span> ${suggHtml ? `&rarr; Suggested: ${suggHtml}` : '<span style="color: #94a3b8; font-size: 0.72rem;">(No close match found)</span>'}</li>`;
+    }).join('');
+
+    statusEl.innerHTML = `
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+          <i class="fa-solid fa-triangle-exclamation" style="color: #ef4444; font-size: 1rem;"></i>
+          <strong>Unrecognized Gene Symbols Detected (${valData.invalid_count}):</strong>
+        </div>
+        <ul style="margin: 0 0 0.5rem 1rem; padding: 0;">
+          ${invalidItemsHtml}
+        </ul>
+        <div style="font-size: 0.73rem; color: #cbd5e1;">
+          ${valData.valid_count} valid symbol(s) confirmed. Please correct or verify the flagged symbols.
+        </div>
+      </div>
+    `;
+  }
+
+  return valData;
+}
+
 async function submitCreateNewPanel() {
   const nameEl = document.getElementById('newPanelName');
   const codeEl = document.getElementById('newPanelCode');
@@ -332,6 +455,14 @@ async function submitCreateNewPanel() {
   if (!rawGenes) {
     showToast('Please provide at least one gene for the initial panel', 'warning');
     return;
+  }
+
+  // Validate gene symbols before submission
+  const valResult = await validateNewPanelGenes();
+  if (valResult && valResult.invalid_count > 0) {
+    const invNames = valResult.invalid_genes.map((g) => g.symbol).join(', ');
+    const proceed = confirm(`Warning: ${valResult.invalid_count} unrecognized gene symbol(s) detected: ${invNames}.\n\nDo you want to proceed anyway?`);
+    if (!proceed) return;
   }
 
   try {
@@ -363,6 +494,11 @@ async function submitCreateNewPanel() {
     document.getElementById('newPanelCode').value = '';
     document.getElementById('newPanelDesc').value = '';
     document.getElementById('newPanelGenes').value = '';
+    const statusEl = document.getElementById('newPanelGeneValidationStatus');
+    if (statusEl) {
+      statusEl.style.display = 'none';
+      statusEl.innerHTML = '';
+    }
 
     await loadGenePanelsDropdown();
     if (data.panel_id) {

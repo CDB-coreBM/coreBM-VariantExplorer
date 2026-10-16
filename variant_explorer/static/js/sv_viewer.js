@@ -317,6 +317,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const panelSelect = document.getElementById('svPanelFilter');
   if (panelSelect) panelSelect.addEventListener('change', () => loadSvVariants(true));
 
+  // Ensure default view mode is Structural Variant Callset Table
+  switchSvViewMode('table');
+
   const resetBtn = document.getElementById('svResetFilterBtn');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {

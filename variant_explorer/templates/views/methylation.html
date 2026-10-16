@@ -24,12 +24,99 @@
     </div>
   </div>
 
-  <!-- Methylartist Epigenetic Studio -->
-  <div class="card" style="margin-bottom: 1.25rem; border: 1px solid var(--border-color); background: var(--bg-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
+  <!-- Methylation View Mode Switcher -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <div style="display: flex; gap: 0.5rem;">
+      <button id="methViewTableBtn" class="btn btn-primary" onclick="switchMethViewMode('table')" style="font-size: 0.82rem; font-weight: 700;">
+        <i class="fa-solid fa-table-list"></i> DNA Methylation Callset Table
+      </button>
+      <button id="methViewStudioBtn" class="btn btn-secondary" onclick="switchMethViewMode('studio')" style="font-size: 0.82rem; font-weight: 700;">
+        <i class="fa-solid fa-paintbrush"></i> Methylartist Epigenetic Studio &amp; Multi-Track
+      </button>
+    </div>
+
+    <div style="font-size: 0.8rem; color: var(--text-muted);">
+      <i class="fa-solid fa-circle-info"></i> Click any table row or "Inspect in Studio" to visualize single-read 5mC/5hmC methylation segplots
+    </div>
+  </div>
+
+  <!-- Tabular Methylation Callset Section (Default) -->
+  <div id="methTableSection" style="display: block;">
+    <!-- Filter Toolbar for Table -->
+    <div class="filter-card">
+      <div class="filter-row">
+        <div class="filter-input-group" style="position: relative;">
+          <span class="filter-label">Search Gene:</span>
+          <div style="position: relative;">
+            <input type="text" id="methGeneFilter" class="filter-control" placeholder="e.g. MLH1, MGMT..." style="width: 140px;" autocomplete="off">
+            <div id="methFilterDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; width: 220px; background: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 10px 25px rgba(0,0,0,0.6);"></div>
+          </div>
+        </div>
+        
+        <div class="filter-input-group">
+          <span class="filter-label">Clinical Target:</span>
+          <select id="methTargetFilter" class="filter-control">
+            <option value="">All Regions</option>
+            <option value="MLH1">MLH1 Promoter (Lynch/CRC)</option>
+            <option value="MGMT">MGMT Promoter (Glioblastoma)</option>
+            <option value="BRCA1">BRCA1 Promoter (Breast/Ovarian)</option>
+            <option value="CDKN2A">CDKN2A Promoter (p16INK4a)</option>
+            <option value="H19/IGF2">H19/IGF2 ICR1 (BWS / SRS)</option>
+            <option value="SNRPN">SNRPN PWS/AS ICR (Prader-Willi)</option>
+            <option value="PEG3">PEG3 ICR (Imprinting)</option>
+            <option value="GNAS">GNAS ICR (Pseudohypoparathyroidism)</option>
+          </select>
+        </div>
+
+        <div class="filter-input-group">
+          <span class="filter-label">Min Methylation %:</span>
+          <input type="number" id="methMinPercentFilter" class="filter-control" min="0" max="100" step="5" placeholder="0" style="width: 70px;">
+        </div>
+
+        <div class="filter-input-group">
+          <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="methAsmOnlyFilter"> ASM Imprinting Only
+          </label>
+        </div>
+
+        <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+          <button id="methApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
+          <button id="methResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <div class="table-responsive">
+        <table class="clinic-table" id="methTable">
+          <thead>
+            <tr>
+              <th>Gene / Locus</th>
+              <th>Region (GRCh38)</th>
+              <th>Region Type</th>
+              <th>Mean 5mC %</th>
+              <th>CpG Sites</th>
+              <th>Valid Read Coverage</th>
+              <th>Clinical Significance</th>
+              <th>ASM Imprinting Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="methTableBody">
+            <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading methylation data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Methylartist Epigenetic Studio (Toggled on demand) -->
+  <div id="methStudioSection" class="card" style="display: none; margin-bottom: 1.25rem; border: 1px solid var(--border-color); background: var(--bg-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
     <div style="background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--medical-teal);">
       <div style="display: flex; align-items: center; gap: 0.65rem;">
         <span class="hospital-badge" style="background: #00a896; font-size: 0.7rem;">METHYLARTIST</span>
-        <h3 style="color: #ffffff; font-size: 1.05rem; font-weight: 700; margin: 0;">Epigenetic Locus & Phased Segplot Studio</h3>
+        <h3 style="color: #ffffff; font-size: 1.05rem; font-weight: 700; margin: 0;">Epigenetic Locus &amp; Phased Segplot Studio</h3>
       </div>
       
       <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -108,74 +195,6 @@
       <div>
         <span style="color: #64748b;">Powered by Dorado 5mCG + modkit bedMethyl standard</span>
       </div>
-    </div>
-  </div>
-
-  <!-- Filter Toolbar for Table -->
-  <div class="filter-card">
-    <div class="filter-row">
-      <div class="filter-input-group" style="position: relative;">
-        <span class="filter-label">Search Gene:</span>
-        <div style="position: relative;">
-          <input type="text" id="methGeneFilter" class="filter-control" placeholder="e.g. MLH1, MGMT..." style="width: 140px;" autocomplete="off">
-          <div id="methFilterDropdown" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; width: 220px; background: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 10px 25px rgba(0,0,0,0.6);"></div>
-        </div>
-      </div>
-      
-      <div class="filter-input-group">
-        <span class="filter-label">Clinical Target:</span>
-        <select id="methTargetFilter" class="filter-control">
-          <option value="">All Regions</option>
-          <option value="MLH1">MLH1 Promoter (Lynch/CRC)</option>
-          <option value="MGMT">MGMT Promoter (Glioblastoma)</option>
-          <option value="BRCA1">BRCA1 Promoter (Breast/Ovarian)</option>
-          <option value="CDKN2A">CDKN2A Promoter (p16INK4a)</option>
-          <option value="H19/IGF2">H19/IGF2 ICR1 (BWS / SRS)</option>
-          <option value="SNRPN">SNRPN PWS/AS ICR (Prader-Willi)</option>
-          <option value="PEG3">PEG3 ICR (Imprinting)</option>
-          <option value="GNAS">GNAS ICR (Pseudohypoparathyroidism)</option>
-        </select>
-      </div>
-
-      <div class="filter-input-group">
-        <span class="filter-label">Min Methylation %:</span>
-        <input type="number" id="methMinPercentFilter" class="filter-control" min="0" max="100" step="5" placeholder="0" style="width: 70px;">
-      </div>
-
-      <div class="filter-input-group">
-        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
-          <input type="checkbox" id="methAsmOnlyFilter"> ASM Imprinting Only
-        </label>
-      </div>
-
-      <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-        <button id="methApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
-        <button id="methResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Table -->
-  <div class="table-card">
-    <div class="table-responsive">
-      <table class="clinic-table" id="methTable">
-        <thead>
-          <tr>
-            <th>Gene / Locus</th>
-            <th>Region (GRCh38)</th>
-            <th>Region Type</th>
-            <th>Mean 5mC %</th>
-            <th>CpG Sites</th>
-            <th>Valid Read Coverage</th>
-            <th>Clinical Significance</th>
-            <th>ASM Imprinting Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="methTableBody">
-          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading methylation data...</td></tr>
-        </tbody>
-      </table>
     </div>
   </div>
 </div>

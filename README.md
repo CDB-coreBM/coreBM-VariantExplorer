@@ -2,14 +2,15 @@
 
 A modern, high-throughput clinical variant interpretation portal tailored for **Oxford Nanopore Technologies (ONT)** long-read sequencing data, incorporating **Hospital Clínic Barcelona** clinical aesthetics.
 
-## Key Capabilities
+## Key Capabilities (v1.2.0)
 - **Small Variants (SNVs & Indels)**: Native support for Clair3 and DeepVariant calls, including homopolymer error handling, read phasing (`PS`), automated ACMG/AMP 5-tier classification, and AMP/ASCO/CAP somatic tiering.
-- **Structural Variants (SVs >=50 bp)**: Supports Sniffles2, cuteSV, and Severus calls (DEL, INS, DUP, INV, BND / translocations) with tandem-repeat overlap flags, read support thresholds, and interactive breakpoint connection arcs.
-- **DNA Methylation & Epigenetics (Methylartist Integration)**: Ingests modkit 18-column `bedMethyl` and DMR tables, tracks 5mC percentage, flags promoter hyper/hypo-methylation in cancer genes (*MLH1*, *MGMT*, *BRCA1*), and resolves Allele-Specific Methylation (ASM) for imprinting disorders. Features a native **Methylartist Epigenetic Studio** rendering multi-track composite plots with Aggregate 5mC, Phased Haplotypes (HP1 vs HP2), Single-Read 5mC Segplots, and CpG island densities.
-- **Interactive Circos Plot for Complex SVs & Fusions**: Circular whole-genome ideogram with interactive chord ribbons for complex structural variants, inter-chromosomal translocations (*BCR*::*ABL1*, *KMT2A*::*AFF1*, *MYC*::*IGH*), and inversions (*EML4*::*ALK*). Clicking any chord immediately reveals breakpoint coordinates, fusion partners, clinical targeted therapies, and ONT read support.
-- **GIAB HG002 Platinum Genome ONT Benchmark**: Includes public Oxford Nanopore PromethION R10.4.1 benchmark data for HG002 (NA24385) with phased small variants (Clair3), benchmark structural variants (Sniffles2), and direct 5mC methylation profiles (modkit).
-- **Interactive Multi-Track Locus Viewer**: Built-in SVG genome inspector with cytoband, transcripts, coverage depth, phased reads, SV junctions, and methylation lollipops.
-- **Clinical Reporting**: Comprehensive report builder with clinician interpretation sign-off and printable PDF/HTML export.
+- **Structural Variants (Table First & Interactive Circos)**: Default starting point is the tabular callset for high-density filtering of breakpoints, length, depth, and TR annotations, with one-click access to the **Interactive Circos Fusion Studio** for complex structural rearrangements (*BCR*::*ABL1*, *KMT2A*::*AFF1*, *EML4*::*ALK*).
+- **DNA Methylation & Epigenetics (Table First & Methylartist Studio)**: Ingests modkit 18-column `bedMethyl` and DMR tables with filterable metrics (Mean 5mC %, CpG counts, imprinting). Features an interactive switcher to the **Methylartist Epigenetic Studio** rendering Aggregate 5mC, Phased Haplotypes (HP1 vs HP2), Single-Read 5mC Segplots, and CpG island densities.
+- **Tandem Repeat Expansions (TRGT / Straglr)**: Dedicated clinical section for short tandem repeat expansions (*HTT*, *C9orf72*, *FMR1*, *FXN*, *DMPK*, *ATXN1*, *ATXN2*, *ATXN3*, *CACNA1A*, *ATXN7*) with haplotype-resolved repeat copy sizing, disease cutoffs, and direct IGV locus inspection.
+- **Clinical Gene Panel Management & HGNC Validation**: Create, version, and curate custom clinical panels with live HGNC gene validation and fuzzy match typo corrections (e.g. `BRAFF` &rarr; `BRAF`).
+- **Persistent Clinical Reporting**: Findings added to reports are stored permanently in the SQLite database per case with full clinician audit trails, supporting inline curation note editing and surviving server reboots.
+- **Broad IGV.js Multi-Track Genomic Browser**: Local streaming IGV.js instance with nucleotide-level resolution, phased reads (HP1/HP2), CMRG medical genes, and SV breakpoint junctions.
+- **GIAB HG002 Platinum Benchmark**: Bundled with Oxford Nanopore PromethION R10.4.1 benchmark data for HG002 (NA24385).
 
 ## Quick Start
 ```bash

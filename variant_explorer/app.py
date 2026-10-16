@@ -593,6 +593,21 @@ def create_app(db_path: Optional[str] = None) -> Flask:
             "genes": results
         })
 
+    @app.route("/api/genes/validate", methods=["POST"])
+    def api_validate_genes():
+        data = request.get_json() or {}
+        raw_genes = data.get("genes", [])
+        if isinstance(raw_genes, str):
+            import re
+            symbols = [g.strip().upper() for g in re.split(r"[\s,;]+", raw_genes) if g.strip()]
+        elif isinstance(raw_genes, list):
+            symbols = [str(g).strip().upper() for g in raw_genes if str(g).strip()]
+        else:
+            symbols = []
+        from .gene_catalog import validate_genes
+        res = validate_genes(symbols)
+        return jsonify(res)
+
     # -------------------------------------------------------------
     # Methylartist Epigenetic Visualization REST API
     # -------------------------------------------------------------
@@ -1203,6 +1218,72 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         return jsonify({"status": "success", "data": report_data})
 
     # -------------------------------------------------------------
+    # Persistent Clinical Report Findings REST API
+    # -------------------------------------------------------------
+    @app.route("/api/cases/<case_id_str>/report_findings", methods=["GET"])
+    def get_case_report_findings_route(case_id_str: str):
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        if not case_id:
+            conn.close()
+            return jsonify({"status": "error", "message": "Case not found."}), 404
+        from .models import get_case_report_findings
+        findings = get_case_report_findings(conn, case_id)
+        conn.close()
+        return jsonify({"status": "success", "case_id": case_id, "count": len(findings), "findings": findings})
+
+    @app.route("/api/cases/<case_id_str>/report_findings", methods=["POST"])
+    def save_case_report_finding_route(case_id_str: str):
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        if not case_id:
+            conn.close()
+            return jsonify({"status": "error", "message": "Case not found."}), 404
+        data = request.get_json() or {}
+        if not data:
+            conn.close()
+            return jsonify({"status": "error", "message": "No finding data provided."}), 400
+        from .models import save_case_report_finding
+        try:
+            finding_id = save_case_report_finding(conn, case_id, data)
+            conn.close()
+            return jsonify({"status": "success", "message": "Finding saved to clinical report.", "finding_id": finding_id})
+        except Exception as e:
+            conn.close()
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    @app.route("/api/cases/<case_id_str>/report_findings/<finding_id>", methods=["DELETE"])
+    def delete_case_report_finding_route(case_id_str: str, finding_id: str):
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        if not case_id:
+            conn.close()
+            return jsonify({"status": "error", "message": "Case not found."}), 404
+        from .models import delete_case_report_finding
+        success = delete_case_report_finding(conn, case_id, finding_id)
+        conn.close()
+        if success:
+            return jsonify({"status": "success", "message": "Finding removed from report."})
+        return jsonify({"status": "error", "message": "Finding not found."}), 404
+
+    @app.route("/api/cases/<case_id_str>/report_findings/<finding_id>", methods=["PUT", "PATCH"])
+    def update_case_report_finding_route(case_id_str: str, finding_id: str):
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        if not case_id:
+            conn.close()
+            return jsonify({"status": "error", "message": "Case not found."}), 404
+        data = request.get_json() or {}
+        notes = data.get("clinical_notes", "")
+        acmg_class = data.get("acmg_class")
+        from .models import update_case_report_finding_notes
+        success = update_case_report_finding_notes(conn, case_id, finding_id, notes, acmg_class)
+        conn.close()
+        if success:
+            return jsonify({"status": "success", "message": "Finding curation updated."})
+        return jsonify({"status": "error", "message": "Finding not found."}), 404
+
+    # -------------------------------------------------------------
     # Zero-Copy HTTP 206 Partial Content Genomic Streaming API
     # -------------------------------------------------------------
     @app.route("/api/stream/files/<path:file_path>", methods=["GET"])
@@ -1251,18 +1332,69 @@ def create_app(db_path: Optional[str] = None) -> Flask:
     # -------------------------------------------------------------
     @app.route("/api/repeats", methods=["GET"])
     def get_tandem_repeats():
-        case_id_str = request.args.get("case_id", "1")
-        case_id = int(case_id_str) if case_id_str.isdigit() else 1
+        case_id_str = request.args.get("case_id")
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str) if case_id_str else 1
+        
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM tandem_repeats WHERE case_id = ? ORDER BY id ASC", (case_id,))
+        rows = [dict(r) for r in cursor.fetchall()]
+        
         from .tandem_repeats import TandemRepeatEngine
-        repeats = [
-            TandemRepeatEngine.evaluate_repeat_allele("HTT", 18, 19, "CAG"),
-            TandemRepeatEngine.evaluate_repeat_allele("C9orf72", 4, 8, "GGGGCC"),
-            TandemRepeatEngine.evaluate_repeat_allele("FMR1", 29, 31, "CGG"),
-            TandemRepeatEngine.evaluate_repeat_allele("FXN", 11, 14, "GAA"),
-            TandemRepeatEngine.evaluate_repeat_allele("DMPK", 12, 15, "CTG"),
-            TandemRepeatEngine.evaluate_repeat_allele("ATXN1", 28, 29, "CAG")
-        ]
-        return jsonify({"status": "success", "case_id": case_id, "count": len(repeats), "repeat_expansions": repeats})
+        if not rows:
+            standard_loci = [
+                ("HTT", 18, 19, "CAG"),
+                ("C9orf72", 4, 8, "GGGGCC"),
+                ("FMR1", 29, 31, "CGG"),
+                ("FXN", 11, 14, "GAA"),
+                ("DMPK", 12, 15, "CTG"),
+                ("ATXN1", 28, 29, "CAG"),
+                ("ATXN2", 22, 23, "CAG"),
+                ("ATXN3", 21, 24, "CAG"),
+                ("CACNA1A", 11, 13, "CAG"),
+                ("ATXN7", 10, 12, "CAG")
+            ]
+            repeats = []
+            for gene, a1, a2, motif in standard_loci:
+                eval_res = TandemRepeatEngine.evaluate_repeat_allele(gene, a1, a2, motif)
+                ref_locus = TandemRepeatEngine.PATHOGENIC_REPEAT_LOCI.get(gene.upper(), {})
+                chrom = ref_locus.get("chrom", "chr1")
+                start = ref_locus.get("start", 0)
+                end = ref_locus.get("end", 0)
+                cursor.execute("""
+                    INSERT INTO tandem_repeats (
+                        case_id, gene_symbol, disease, motif, chrom, start, end,
+                        allele_1_count, allele_2_count, status, clinical_significance, acmg_class
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    case_id, eval_res["gene_symbol"], eval_res["disease"], eval_res["motif"],
+                    chrom, start, end, a1, a2, eval_res["status"],
+                    eval_res["clinical_significance"], eval_res.get("acmg_class", "Benign")
+                ))
+                eval_res["id"] = cursor.lastrowid
+                eval_res["chrom"] = chrom
+                eval_res["start"] = start
+                eval_res["end"] = end
+                repeats.append(eval_res)
+            conn.commit()
+        else:
+            repeats = []
+            for r in rows:
+                eval_res = TandemRepeatEngine.evaluate_repeat_allele(
+                    r["gene_symbol"], r["allele_1_count"], r["allele_2_count"], r["motif"]
+                )
+                eval_res["id"] = r["id"]
+                eval_res["chrom"] = r.get("chrom")
+                eval_res["start"] = r.get("start")
+                eval_res["end"] = r.get("end")
+                repeats.append(eval_res)
+        return jsonify({
+            "status": "success",
+            "case_id": case_id,
+            "count": len(repeats),
+            "repeats": repeats,
+            "repeat_expansions": repeats
+        })
 
     # -------------------------------------------------------------
     # Clinical Diagnostic Report HTML/JSON Download API
