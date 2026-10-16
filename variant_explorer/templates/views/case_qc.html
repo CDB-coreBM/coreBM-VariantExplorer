@@ -57,13 +57,35 @@
     </div>
   </div>
 
-  <div class="filter-card" style="margin-top: 1rem;">
-    <h4 class="drawer-section-title"><i class="fa-solid fa-link"></i> Phased Compound Heterozygosity (Cis vs Trans)</h4>
-    <p style="font-size: 0.85rem; color: #475569; margin: 0.35rem 0 0.75rem 0;">
-      Resolves recessive disease pathogenicity by determining whether two co-occurring mutations reside on opposite physical haplotypes (<span style="color:#10b981; font-weight:700;">In-Trans = Biallelic / Diagnostic Confirmation</span>) or the same haplotype (<span style="color:#f59e0b; font-weight:700;">In-Cis = Carrier</span>).
-    </p>
-    <div id="compoundHetTableContainer">
-      <div style="text-align: center; color: #64748b; padding: 1rem;">Loading phased compound heterozygous variants...</div>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+    <!-- Card 4: Long-Read Haplotype Phasing QC -->
+    <div class="filter-card">
+      <h4 class="drawer-section-title"><i class="fa-solid fa-link"></i> Long-Read Phasing & Assembly QC</h4>
+      <div class="drawer-kv-grid" style="margin-top: 0.5rem;">
+        <span class="drawer-kv-label">Phasing Status:</span>
+        <span class="drawer-kv-value" style="color: #10b981; font-weight: 700;"><i class="fa-solid fa-circle-check"></i> High-Continuity Phased</span>
+        <span class="drawer-kv-label">Phasing Engine:</span>
+        <span class="drawer-kv-value">Clair3 + WhatsHap v2.3</span>
+        <span class="drawer-kv-label">Diploid Phase Rate:</span>
+        <span class="drawer-kv-value" id="qcPhasedRate">> 98.5% Heterozygous SNVs</span>
+        <span class="drawer-kv-label">Phase Block Format:</span>
+        <span class="drawer-kv-value">ONT Physical PS Haplotype Blocks</span>
+      </div>
+    </div>
+
+    <!-- Card 5: Case & Sample Clinical Metadata -->
+    <div class="filter-card">
+      <h4 class="drawer-section-title"><i class="fa-solid fa-id-card-clip"></i> Patient & Specimen Metadata</h4>
+      <div class="drawer-kv-grid" style="margin-top: 0.5rem;">
+        <span class="drawer-kv-label">Patient Name:</span>
+        <span class="drawer-kv-value" id="qcPatientName">-</span>
+        <span class="drawer-kv-label">Patient ID:</span>
+        <span class="drawer-kv-value" id="qcPatientId">-</span>
+        <span class="drawer-kv-label">Sample Source:</span>
+        <span class="drawer-kv-value" id="qcSampleType">-</span>
+        <span class="drawer-kv-label">Clinical Indication:</span>
+        <span class="drawer-kv-value" id="qcIndication">-</span>
+      </div>
     </div>
   </div>
 

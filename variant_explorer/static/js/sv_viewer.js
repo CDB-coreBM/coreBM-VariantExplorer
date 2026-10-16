@@ -4,7 +4,13 @@ let svTotal = 0;
 let allCaseSVs = [];
 
 async function loadSvVariants(resetPage = false) {
-  if (!AppState.activeCaseId) return;
+  if (!AppState.activeCaseId) {
+    const tbody = document.getElementById('svTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.75rem; color: #64748b; display: block;"></i>Please select a clinical case from the header dropdown or ingest a new sample.</td></tr>';
+    }
+    return;
+  }
   if (resetPage) AppState.svPage = 1;
 
   const pEl = document.getElementById('svPanelFilter');

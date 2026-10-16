@@ -70,20 +70,8 @@ def generate_locus_svg(
     # Track 2: Gene Model & Exons
     y_gene = 75
     svg_parts.append(f'<text x="{margin_left - 10}" y="{y_gene + 5}" fill="#38bdf8" font-size="11" font-weight="600" text-anchor="end">{gene_symbol or "GENE"}</text>')
-    # Intron line
+    # Intron / canonical transcript line
     svg_parts.append(f'<line x1="{margin_left}" y1="{y_gene}" x2="{width - margin_right}" y2="{y_gene}" stroke="#38bdf8" stroke-width="2" stroke-dasharray="4,4"/>')
-
-    # Simulated exons across locus
-    num_exons = 4
-    exon_span = span / (num_exons * 2)
-    for e in range(num_exons):
-        e_start = start + int((e * 2 + 0.5) * exon_span)
-        e_end = e_start + int(exon_span * 0.8)
-        ex1 = x_coord(e_start)
-        ex2 = x_coord(e_end)
-        ew = max(6, ex2 - ex1)
-        svg_parts.append(f'<rect x="{ex1}" y="{y_gene - 8}" width="{ew}" height="16" rx="3" fill="#0284c7" stroke="#38bdf8" stroke-width="1"/>')
-        svg_parts.append(f'<text x="{ex1 + ew/2}" y="{y_gene + 4}" fill="#ffffff" font-size="9" font-weight="700" text-anchor="middle">E{e+1}</text>')
 
     # Track 3: ONT Long-Read Coverage Depth Profile
     y_cov_base = 180
@@ -95,24 +83,11 @@ def generate_locus_svg(
     svg_parts.append(f'<line x1="{margin_left}" y1="{y_30x}" x2="{width - margin_right}" y2="{y_30x}" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,3"/>')
     svg_parts.append(f'<text x="{width - margin_right + 4}" y="{y_30x + 3}" fill="#ef4444" font-size="9">30x</text>')
 
-    # Coverage area path
-    cov_points: List[str] = [f"{margin_left},{y_cov_base}"]
-    step_px = 12
-    steps = int(plot_width / step_px)
-    for s_idx in range(steps + 1):
-        cur_x = margin_left + (s_idx * step_px)
-        cur_ratio = s_idx / steps
-        # Natural fluctuation around mean depth
-        depth_val = mean_depth * (0.85 + 0.3 * math.sin(cur_ratio * 14) * math.cos(cur_ratio * 7))
-        # If there's a deletion, dip to 0
-        if sv_type == "DEL" and sv_start and sv_end:
-            if x_coord(sv_start) <= cur_x <= x_coord(sv_end):
-                depth_val = depth_val * 0.45  # heterozygous drop
-        cur_y = y_cov_base - int((depth_val / max(60.0, mean_depth * 1.5)) * y_cov_height)
-        cov_points.append(f"{cur_x:.1f},{cur_y:.1f}")
-    cov_points.append(f"{width - margin_right},{y_cov_base}")
-    svg_parts.append(f'<polygon points="{" ".join(cov_points)}" fill="url(#covGrad)"/>')
-    svg_parts.append(f'<polyline points="{" ".join(cov_points[1:-1])}" fill="none" stroke="#00a896" stroke-width="1.8"/>')
+    # Flat reference line at mean depth across locus
+    y_mean = y_cov_base - int((mean_depth / max(60.0, mean_depth * 1.5)) * y_cov_height)
+    svg_parts.append(f'<rect x="{margin_left}" y="{y_mean}" width="{plot_width}" height="{y_cov_base - y_mean}" fill="url(#covGrad)"/>')
+    svg_parts.append(f'<line x1="{margin_left}" y1="{y_mean}" x2="{width - margin_right}" y2="{y_mean}" stroke="#00a896" stroke-width="1.8"/>')
+    svg_parts.append(f'<text x="{margin_left + 10}" y="{y_mean - 6}" fill="#00a896" font-size="9" font-weight="600">Mean Coverage: {mean_depth:.1f}x</text>')
 
     # Track 4: Variant Indicators & Structural Variant Arcs
     if snv_pos and start <= snv_pos <= end:
@@ -141,28 +116,22 @@ def generate_locus_svg(
     svg_parts.append(f'<text x="{margin_left - 10}" y="{y_meth_base - 15}" fill="#f59e0b" font-size="11" font-weight="600" text-anchor="end">5mC %</text>')
     svg_parts.append(f'<line x1="{margin_left}" y1="{y_meth_base}" x2="{width - margin_right}" y2="{y_meth_base}" stroke="#334155" stroke-width="1"/>')
     
-    # Render methylation lollipops
-    points_to_render = methylation_points or [
-        {"pos": start + int(span * 0.15), "pct": 12.0},
-        {"pos": start + int(span * 0.30), "pct": 82.0},
-        {"pos": start + int(span * 0.45), "pct": 88.0},
-        {"pos": start + int(span * 0.60), "pct": 15.0},
-        {"pos": start + int(span * 0.75), "pct": 92.0},
-        {"pos": start + int(span * 0.88), "pct": 8.0},
-    ]
-
-    for p in points_to_render:
-        p_pos = p.get("pos", p.get("start", start))
-        if start <= p_pos <= end:
-            mx = x_coord(p_pos)
-            pct = float(p.get("percent_modified", p.get("pct", 50.0)))
-            # Height proportional to % 5mC (max height: 35px)
-            pin_h = int((pct / 100.0) * 35)
-            my = y_meth_base - pin_h
-            
-            m_col = "#e63946" if pct >= 60.0 else "#2a9d8f" if pct <= 20.0 else "#f59e0b"
-            svg_parts.append(f'<line x1="{mx}" y1="{y_meth_base}" x2="{mx}" y2="{my}" stroke="{m_col}" stroke-width="1.5"/>')
-            svg_parts.append(f'<circle cx="{mx}" cy="{my}" r="4.5" fill="{m_col}" stroke="#ffffff" stroke-width="1"/>')
+    # Render authentic methylation lollipops ONLY if genuine points provided
+    if methylation_points and len(methylation_points) > 0:
+        for p in methylation_points:
+            p_pos = p.get("pos", p.get("start", start))
+            if start <= p_pos <= end:
+                mx = x_coord(p_pos)
+                pct = float(p.get("percent_modified", p.get("pct", 50.0)))
+                # Height proportional to % 5mC (max height: 35px)
+                pin_h = int((pct / 100.0) * 35)
+                my = y_meth_base - pin_h
+                
+                m_col = "#e63946" if pct >= 60.0 else "#2a9d8f" if pct <= 20.0 else "#f59e0b"
+                svg_parts.append(f'<line x1="{mx}" y1="{y_meth_base}" x2="{mx}" y2="{my}" stroke="{m_col}" stroke-width="1.5"/>')
+                svg_parts.append(f'<circle cx="{mx}" cy="{my}" r="4.5" fill="{m_col}" stroke="#ffffff" stroke-width="1"/>')
+    else:
+        svg_parts.append(f'<text x="{(margin_left + width - margin_right)/2}" y="{y_meth_base - 10}" fill="#64748b" font-size="9" text-anchor="middle">No verified CpG methylation records in this interval (Zero Simulation Policy)</text>')
 
     svg_parts.append('</svg>')
     return "".join(svg_parts)

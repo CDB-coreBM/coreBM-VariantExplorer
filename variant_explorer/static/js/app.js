@@ -37,11 +37,12 @@ async function loadCases() {
     const res = await fetch('/api/cases');
     const data = await res.json();
     const select = document.getElementById('activeCaseSelect');
-    select.innerHTML = '';
+    select.innerHTML = '<option value="" disabled selected>-- Select a Clinical Case --</option>';
     
     const cases = data.cases || [];
     if (cases.length === 0) {
       select.innerHTML = '<option value="">No cases ingested</option>';
+      renderNoCaseSelectedState();
       return;
     }
     
@@ -52,19 +53,78 @@ async function loadCases() {
       select.appendChild(opt);
     });
 
-    if (!AppState.activeCaseId && cases.length > 0) {
-      AppState.activeCaseId = cases[0].id;
-    }
-    select.value = AppState.activeCaseId;
-    await fetchActiveCaseDetails();
+    // Default policy: Do not auto-select or load any case. Prompt user to select or ingest.
+    AppState.activeCaseId = null;
+    AppState.activeCaseData = null;
+    select.value = '';
+    renderNoCaseSelectedState();
   } catch (err) {
     console.error('Failed to load cases:', err);
     showToast('Failed to load clinical cases', 'error');
   }
 }
 
+function renderNoCaseSelectedState() {
+  // 1. Reset header badges
+  const bSnv = document.getElementById('badgeSnvCount');
+  const bSv = document.getElementById('badgeSvCount');
+  const bMeth = document.getElementById('badgeMethCount');
+  if (bSnv) bSnv.textContent = '-';
+  if (bSv) bSv.textContent = '-';
+  if (bMeth) bMeth.textContent = '-';
+
+  const sSample = document.getElementById('snvSummarySample');
+  const sDepth = document.getElementById('snvSummaryDepth');
+  const sTitv = document.getElementById('snvSummaryTitv');
+  if (sSample) sSample.textContent = 'No case selected';
+  if (sDepth) sDepth.textContent = '-';
+  if (sTitv) sTitv.textContent = '-';
+
+  // 2. Render prominent advisory banner in Case QC View
+  const qcView = document.getElementById('qc-view');
+  if (qcView && !document.getElementById('noCaseAdvisoryCard')) {
+    const banner = document.createElement('div');
+    banner.id = 'noCaseAdvisoryCard';
+    banner.style.cssText = 'background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 2.25rem 1.5rem; text-align: center; color: #f8fafc; margin-bottom: 1.25rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3);';
+    banner.innerHTML = `
+      <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(56, 189, 248, 0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto 0.85rem auto; color: #38bdf8; font-size: 1.5rem;">
+        <i class="fa-solid fa-folder-open"></i>
+      </div>
+      <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; font-weight: 700; color: #ffffff;">No Clinical Case Loaded</h3>
+      <p style="color: #cbd5e1; font-size: 0.9rem; max-width: 560px; margin: 0 auto 1.25rem auto; line-height: 1.55;">
+        Please select a sequenced patient case from the <strong>Active Case</strong> dropdown above to inspect Run QC, Small Variants, Structural Variants, and Methylation, or ingest a new sequencing run.
+      </p>
+      <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        <button class="btn btn-primary" onclick="openUploadModal()"><i class="fa-solid fa-cloud-arrow-up"></i> Ingest New Sample</button>
+      </div>
+    `;
+    qcView.insertBefore(banner, qcView.firstChild);
+  }
+
+  // 3. Inform empty states in other view tables
+  const snvTbody = document.getElementById('snvTableBody');
+  if (snvTbody) {
+    snvTbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--text-muted); padding: 3rem;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.75rem; color: #64748b; display: block;"></i>Please select a clinical case from the header dropdown or ingest a new sample.</td></tr>';
+  }
+  const svTbody = document.getElementById('svTableBody');
+  if (svTbody) {
+    svTbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.75rem; color: #64748b; display: block;"></i>Please select a clinical case from the header dropdown or ingest a new sample.</td></tr>';
+  }
+  const methTbody = document.getElementById('methTableBody');
+  if (methTbody) {
+    methTbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.75rem; color: #64748b; display: block;"></i>Please select a clinical case from the header dropdown or ingest a new sample.</td></tr>';
+  }
+  const repContainer = document.getElementById('repeatsTableContainer');
+  if (repContainer) {
+    repContainer.innerHTML = '<div style="text-align: center; color: #64748b; padding: 1.5rem;">Select a case to inspect tandem repeat expansion calls.</div>';
+  }
+}
+
 async function fetchActiveCaseDetails() {
-  if (!AppState.activeCaseId) return;
+  if (!AppState.activeCaseId) {
+    renderNoCaseSelectedState();
+    return;
+  }
   try {
     const res = await fetch(`/api/cases/${AppState.activeCaseId}`);
     const data = await res.json();
@@ -74,6 +134,11 @@ async function fetchActiveCaseDetails() {
       return;
     }
     AppState.activeCaseData = caseData;
+
+    // Remove no-case advisory card if present
+    const advisory = document.getElementById('noCaseAdvisoryCard');
+    if (advisory) advisory.remove();
+
     updateHeaderBadges(caseData);
     updateQcView(caseData);
     
@@ -257,84 +322,47 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadCaseQcAndPhasing() {
-  const caseId = AppState.activeCaseId || 1;
-  const hetContainer = document.getElementById('compoundHetTableContainer');
+  if (!AppState.activeCaseId) return;
+  const caseId = AppState.activeCaseId;
   const repContainer = document.getElementById('repeatsTableContainer');
 
-  // 1. Fetch Compound Heterozygosity
-  if (hetContainer) {
-    try {
-      const res = await fetch(`/api/phasing/compound_het?case_id=${caseId}`);
-      if (res.ok) {
-        const data = await res.json();
-        const pairs = data.compound_heterozygous_pairs || [];
-        if (pairs.length === 0) {
-          hetContainer.innerHTML = '<div style="color: #64748b; font-size: 0.85rem; padding: 0.5rem 0;">No multi-variant compound heterozygous pairs detected in evaluated recessive disease genes.</div>';
-        } else {
-          hetContainer.innerHTML = `
-            <table class="clinic-table" style="font-size: 0.85rem;">
-              <thead>
-                <tr>
-                  <th>Gene</th>
-                  <th>Variant 1</th>
-                  <th>Variant 2</th>
-                  <th>Haplotype Phasing</th>
-                  <th>Clinical Diagnostic Interpretation</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${pairs.map(p => `
-                  <tr>
-                    <td><strong>${p.gene_symbol}</strong></td>
-                    <td><code>${p.variant_1}</code></td>
-                    <td><code>${p.variant_2}</code></td>
-                    <td><span class="badge ${p.phase_configuration.includes('In-Trans') ? 'badge-pathogenic' : 'badge-warning'}">${p.phase_configuration}</span></td>
-                    <td style="font-size: 0.8rem; line-height: 1.4;">${p.clinical_interpretation}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
-        }
-      }
-    } catch (e) {
-      console.warn('Error loading compound het:', e);
-    }
-  }
-
-  // 2. Fetch Tandem Repeat Expansions
+  // Fetch Tandem Repeat Expansions (TRGT / Straglr long-read assay)
   if (repContainer) {
     try {
       const res = await fetch(`/api/repeats?case_id=${caseId}`);
       if (res.ok) {
         const data = await res.json();
         const repeats = data.repeat_expansions || [];
-        repContainer.innerHTML = `
-          <table class="clinic-table" style="font-size: 0.85rem;">
-            <thead>
-              <tr>
-                <th>Locus / Disease</th>
-                <th>Repeat Motif</th>
-                <th>Allele 1 Size</th>
-                <th>Allele 2 Size</th>
-                <th>Expansion Status</th>
-                <th>Clinical Assessment</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${repeats.map(r => `
+        if (repeats.length === 0) {
+          repContainer.innerHTML = '<div style="text-align: center; color: #64748b; padding: 1.5rem;">No pathogenic repeat expansions detected across evaluated repeat expansion loci.</div>';
+        } else {
+          repContainer.innerHTML = `
+            <table class="clinic-table" style="font-size: 0.85rem;">
+              <thead>
                 <tr>
-                  <td><strong>${r.gene_symbol}</strong> <span style="font-size: 0.75rem; color: #64748b;">(${r.disease})</span></td>
-                  <td><span class="badge badge-info" style="font-family: monospace;">${r.motif}</span></td>
-                  <td><strong>${r.allele_1_count}</strong> repeats</td>
-                  <td><strong>${r.allele_2_count}</strong> repeats</td>
-                  <td><span class="badge ${r.status.includes('Pathogenic') ? 'badge-pathogenic' : 'badge-likely-benign'}">${r.status}</span></td>
-                  <td style="font-size: 0.8rem;">${r.clinical_significance}</td>
+                  <th>Locus / Disease</th>
+                  <th>Repeat Motif</th>
+                  <th>Allele 1 Size</th>
+                  <th>Allele 2 Size</th>
+                  <th>Expansion Status</th>
+                  <th>Clinical Assessment</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
+              </thead>
+              <tbody>
+                ${repeats.map(r => `
+                  <tr>
+                    <td><strong>${r.gene_symbol}</strong> <span style="font-size: 0.75rem; color: #64748b;">(${r.disease})</span></td>
+                    <td><span class="badge badge-info" style="font-family: monospace;">${r.motif}</span></td>
+                    <td><strong>${r.allele_1_count}</strong> repeats</td>
+                    <td><strong>${r.allele_2_count}</strong> repeats</td>
+                    <td><span class="badge ${r.status.includes('Pathogenic') ? 'badge-pathogenic' : 'badge-likely-benign'}">${r.status}</span></td>
+                    <td style="font-size: 0.8rem;">${r.clinical_significance}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
       }
     } catch (e) {
       console.warn('Error loading repeats:', e);

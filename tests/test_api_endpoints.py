@@ -201,16 +201,33 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertEqual(d_fake['status'], 'error')
         self.assertIn('Zero Simulation Policy', d_fake['message'])
 
-        # 2. Authentic gene in case 1 (MLH1) must return 200 SVG without fabricated exons
+        # 2. Invented chromosome (chr166) must return 400 error immediately
+        r_chr166 = self.client.get('/api/methylation/methylartist?chrom=chr166&start=1000&end=5000')
+        self.assertEqual(r_chr166.status_code, 400)
+        d_chr166 = json.loads(r_chr166.data)
+        self.assertIn("Contig 'chr166' is invalid", d_chr166['message'])
+
+        # 3. Authentic gene in case 1 (MLH1) must return 200 SVG without fabricated exons
         r_real = self.client.get('/api/methylation/methylartist?case_id=1&gene=MLH1')
         self.assertEqual(r_real.status_code, 200)
         svg_content = r_real.get_data(as_text=True)
         self.assertIn('<svg', svg_content)
         self.assertIn('MLH1', svg_content)
-        # Verify fake exon 1/2/3 labels are NOT generated
         self.assertNotIn('Exon 1', svg_content)
-        self.assertNotIn('Exon 2', svg_content)
-        self.assertNotIn('Exon 3', svg_content)
+
+    def test_igv_refseq_and_bam_config(self):
+        """Test IGV config includes real RefSeq track, CMRG track, and high-performance BAM parameters."""
+        res = self.client.get(f'/api/igv/config?case_id={self.case_id}')
+        self.assertEqual(res.status_code, 200)
+        tracks = json.loads(res.data)['config']['tracks']
+        track_names = [t['name'] for t in tracks]
+        
+        self.assertIn('NCBI RefSeq Genes', track_names)
+        self.assertIn('CMRG Challenging Medical Genes (Benchmark)', track_names)
+        
+        bam_track = next(t for t in tracks if t['format'] == 'bam')
+        self.assertEqual(bam_track['visibilityWindow'], 30000)
+        self.assertEqual(bam_track['samplingDepth'], 30)
 
 if __name__ == '__main__':
     unittest.main()

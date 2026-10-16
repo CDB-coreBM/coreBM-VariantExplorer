@@ -4,7 +4,8 @@
 let igvBrowserInstance = null;
 let isIgvInitializing = false;
 let igvCachedTracks = {
-  genes: null,
+  refseq: null,
+  cmrg: null,
   coverage: null,
   bam: null,
   sv: null,
@@ -137,51 +138,68 @@ async function initNativeIgv(targetLocus = null) {
   `;
 
   try {
-    const caseId = (typeof AppState !== 'undefined' && AppState.activeCaseId) ? AppState.activeCaseId : 2;
-    const res = await fetch(`/api/igv/config?case_id=${caseId}&locus=${encodeURIComponent(locus)}`);
-    const data = await res.json();
-    const config = data.config || {};
+  if (!AppState.activeCaseId) {
+    container.innerHTML = `
+      <div style="text-align: center; color: #94a3b8; padding: 6rem 1rem;">
+        <i class="fa-solid fa-folder-open" style="font-size: 2.5rem; margin-bottom: 0.85rem; color: #64748b; display: block;"></i>
+        <div style="font-size: 1.1rem; font-weight: 700; color: #ffffff; margin-bottom: 0.5rem;">No Clinical Case Selected</div>
+        <div style="font-size: 0.85rem; color: #94a3b8; max-width: 480px; margin: 0 auto 1.25rem auto;">
+          Please select an active clinical case from the header dropdown to initialize Broad IGV.js with patient-specific phased long-read alignments and variant tracks.
+        </div>
+      </div>
+    `;
+    return;
+  }
 
-    // Cache track configurations from backend
-    const tracks = config.tracks || [];
-    tracks.forEach(t => {
-      const name = t.name || '';
-      if (t.format === 'bam' || t.type === 'alignment') igvCachedTracks.bam = t;
-      else if (name.includes('Coverage') || t.format === 'bedgraph' || t.type === 'wig') igvCachedTracks.coverage = t;
-      else if (name.includes('RefSeq') || name.includes('Genes')) igvCachedTracks.genes = t;
-      else if (name.includes('CMRG SNVs')) igvCachedTracks.snvCmrg = t;
-      else if (name.includes('Small Variants') || name.includes('GIAB')) igvCachedTracks.snvGiab = t;
-      else if (name.includes('SV Benchmark') || name.includes('SV')) igvCachedTracks.sv = t;
-      else if (name.includes('Methylation') || name.includes('5mC')) igvCachedTracks.meth = t;
-    });
+  const caseId = AppState.activeCaseId;
+  const res = await fetch(`/api/igv/config?case_id=${caseId}&locus=${encodeURIComponent(locus)}`);
+  const data = await res.json();
+  const config = data.config || {};
 
-    // Check toggle states: BAM is NOT loaded by default to prevent overcomputing
-    const bamCb = document.getElementById('trackToggleBam');
-    const genesCb = document.getElementById('trackToggleGenes');
-    const covCb = document.getElementById('trackToggleCoverage');
-    const snvCb = document.getElementById('trackToggleSnv');
-    const svCb = document.getElementById('trackToggleSv');
-    const methCb = document.getElementById('trackToggleMeth');
+  // Cache track configurations from backend
+  const tracks = config.tracks || [];
+  tracks.forEach(t => {
+    const name = t.name || '';
+    if (t.format === 'bam' || t.type === 'alignment') igvCachedTracks.bam = t;
+    else if (name.includes('Coverage') || t.format === 'bedgraph' || t.type === 'wig') igvCachedTracks.coverage = t;
+    else if (t.format === 'refgene' || name === 'NCBI RefSeq Genes') igvCachedTracks.refseq = t;
+    else if (name.includes('CMRG') && t.format === 'bed') igvCachedTracks.cmrg = t;
+    else if (name.includes('CMRG SNVs')) igvCachedTracks.snvCmrg = t;
+    else if (name.includes('Small Variants') || name.includes('GIAB')) igvCachedTracks.snvGiab = t;
+    else if (name.includes('SV Benchmark') || name.includes('SV')) igvCachedTracks.sv = t;
+    else if (name.includes('Methylation') || name.includes('5mC')) igvCachedTracks.meth = t;
+  });
 
-    const shouldLoadBam = bamCb ? bamCb.checked : false; // Default: false
-    const shouldLoadGenes = genesCb ? genesCb.checked : true;
-    const shouldLoadCov = covCb ? covCb.checked : true;
-    const shouldLoadSnv = snvCb ? snvCb.checked : true;
-    const shouldLoadSv = svCb ? svCb.checked : true;
-    const shouldLoadMeth = methCb ? methCb.checked : true;
+  // Check toggle states: BAM is NOT loaded by default to prevent overcomputing
+  const bamCb = document.getElementById('trackToggleBam');
+  const genesCb = document.getElementById('trackToggleGenes');
+  const covCb = document.getElementById('trackToggleCoverage');
+  const snvCb = document.getElementById('trackToggleSnv');
+  const svCb = document.getElementById('trackToggleSv');
+  const methCb = document.getElementById('trackToggleMeth');
 
-    const initialTracks = [];
-    if (shouldLoadGenes && igvCachedTracks.genes) initialTracks.push(igvCachedTracks.genes);
-    if (shouldLoadCov && igvCachedTracks.coverage) initialTracks.push(igvCachedTracks.coverage);
-    if (shouldLoadBam && igvCachedTracks.bam) initialTracks.push(igvCachedTracks.bam);
-    if (shouldLoadSv && igvCachedTracks.sv) initialTracks.push(igvCachedTracks.sv);
-    if (shouldLoadSnv) {
-      if (igvCachedTracks.snvCmrg) initialTracks.push(igvCachedTracks.snvCmrg);
-      if (igvCachedTracks.snvGiab) initialTracks.push(igvCachedTracks.snvGiab);
-    }
-    if (shouldLoadMeth && igvCachedTracks.meth) initialTracks.push(igvCachedTracks.meth);
+  const shouldLoadBam = bamCb ? bamCb.checked : false; // Default: false
+  const shouldLoadGenes = genesCb ? genesCb.checked : true;
+  const shouldLoadCov = covCb ? covCb.checked : true;
+  const shouldLoadSnv = snvCb ? snvCb.checked : true;
+  const shouldLoadSv = svCb ? svCb.checked : true;
+  const shouldLoadMeth = methCb ? methCb.checked : true;
 
-    const activeConfig = Object.assign({}, config, { tracks: initialTracks });
+  const initialTracks = [];
+  if (shouldLoadGenes) {
+    if (igvCachedTracks.refseq) initialTracks.push(igvCachedTracks.refseq);
+    if (igvCachedTracks.cmrg) initialTracks.push(igvCachedTracks.cmrg);
+  }
+  if (shouldLoadCov && igvCachedTracks.coverage) initialTracks.push(igvCachedTracks.coverage);
+  if (shouldLoadBam && igvCachedTracks.bam) initialTracks.push(igvCachedTracks.bam);
+  if (shouldLoadSv && igvCachedTracks.sv) initialTracks.push(igvCachedTracks.sv);
+  if (shouldLoadSnv) {
+    if (igvCachedTracks.snvCmrg) initialTracks.push(igvCachedTracks.snvCmrg);
+    if (igvCachedTracks.snvGiab) initialTracks.push(igvCachedTracks.snvGiab);
+  }
+  if (shouldLoadMeth && igvCachedTracks.meth) initialTracks.push(igvCachedTracks.meth);
+
+  const activeConfig = Object.assign({}, config, { tracks: initialTracks });
 
     // Override container and ensure native configuration
     container.innerHTML = '';
@@ -520,11 +538,13 @@ function setupLocusControls() {
   const genesCb = document.getElementById('trackToggleGenes');
   if (genesCb) {
     genesCb.addEventListener('change', async () => {
-      if (!igvBrowserInstance || !igvCachedTracks.genes) return;
+      if (!igvBrowserInstance) return;
       if (genesCb.checked) {
-        await igvBrowserInstance.loadTrack(igvCachedTracks.genes);
+        if (igvCachedTracks.refseq) await igvBrowserInstance.loadTrack(igvCachedTracks.refseq);
+        if (igvCachedTracks.cmrg) await igvBrowserInstance.loadTrack(igvCachedTracks.cmrg);
       } else {
-        igvBrowserInstance.removeTrackByName(igvCachedTracks.genes.name);
+        if (igvCachedTracks.refseq) igvBrowserInstance.removeTrackByName(igvCachedTracks.refseq.name);
+        if (igvCachedTracks.cmrg) igvBrowserInstance.removeTrackByName(igvCachedTracks.cmrg.name);
       }
     });
   }

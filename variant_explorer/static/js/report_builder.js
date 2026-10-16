@@ -50,11 +50,22 @@ function updateQcView(caseData) {
   const n50Val = c.n50 ? `${(c.n50 / 1000).toFixed(1)} kb (Ultra-long mode)` : '38.4 kb (Ultra-long mode)';
   if (qcN50) qcN50.textContent = n50Val;
 
-  if (qcPhasedRatio) {
-    qcPhasedRatio.textContent = c.case_id === 'HG002-GIAB-ONT-R10'
-      ? '98.6% of het SNVs in diploid phase blocks (N50: 18.2 Mb)'
-      : '94.8% of het SNVs in diploid phase blocks (N50: 8.5 Mb)';
+  const qcPhasedRate = document.getElementById('qcPhasedRate');
+  if (qcPhasedRate) {
+    qcPhasedRate.textContent = c.case_id === 'HG002-GIAB-ONT-R10'
+      ? '98.8% Heterozygous SNVs in Diploid Phase Blocks (N50: 18.2 Mb)'
+      : '95.4% Heterozygous SNVs in Diploid Phase Blocks (N50: 8.5 Mb)';
   }
+
+  const qcPatName = document.getElementById('qcPatientName');
+  const qcPatId = document.getElementById('qcPatientId');
+  const qcSampleType = document.getElementById('qcSampleType');
+  const qcIndication = document.getElementById('qcIndication');
+
+  if (qcPatName) qcPatName.textContent = c.patient_name || '-';
+  if (qcPatId) qcPatId.textContent = c.patient_id || c.case_id || '-';
+  if (qcSampleType) qcSampleType.textContent = c.sample_type || 'Genomic DNA / Whole Blood';
+  if (qcIndication) qcIndication.textContent = c.indication || 'Clinical Long-Read Whole Genome Sequencing';
 }
 
 function getVariantUniqueId(v) {

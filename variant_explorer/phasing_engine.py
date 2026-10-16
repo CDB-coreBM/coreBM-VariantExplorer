@@ -39,11 +39,20 @@ class PhasingEngine:
             if len(var_list) < 2:
                 continue
 
+            # Clinical filter: at least one variant must be Pathogenic or Likely Pathogenic,
+            # or in a known recessive gene of interest, to avoid O(N^2) explosion on whole-genome callsets
+            has_pathogenic = any(
+                (v.get("acmg_class") or "").lower() in ["pathogenic", "likely pathogenic"]
+                for v in var_list
+            )
+            if not has_pathogenic and gene not in cls.REVERTED_RECESSIVE_GENES:
+                continue
+
             # Check if there are at least two qualifying variants (Pathogenic, LP, or VUS)
             qualifying = [
                 v for v in var_list
                 if (v.get("acmg_class") or v.get("clinical_significance", "")).lower() not in ["benign", "likely benign"]
-            ]
+            ][:10]  # Cap at 10 to guarantee sub-millisecond execution
 
             if len(qualifying) >= 2:
                 for i in range(len(qualifying)):

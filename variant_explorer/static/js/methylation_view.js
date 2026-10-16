@@ -3,7 +3,17 @@ let methData = [];
 let currentMethylartistSvg = '';
 
 async function loadMethylationRegions() {
-  if (!AppState.activeCaseId) return;
+  if (!AppState.activeCaseId) {
+    const tbody = document.getElementById('methTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.75rem; color: #64748b; display: block;"></i>Please select a clinical case from the header dropdown or ingest a new sample.</td></tr>';
+    }
+    const container = document.getElementById('methylartistContainer');
+    if (container) {
+      container.innerHTML = '<div style="color: #94a3b8; text-align: center; padding: 4rem;"><i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.75rem; color: #64748b; display: block;"></i>Please select a clinical case to view authentic 5mC epigenetic plots.</div>';
+    }
+    return;
+  }
 
   const gEl = document.getElementById('methGeneFilter');
   const tEl = document.getElementById('methTargetFilter');
@@ -38,7 +48,7 @@ async function loadMethylationRegions() {
     // If methylartist is empty or newly loaded, load the first gene or preset
     if (methData.length > 0) {
       const gInputEl = document.getElementById('maGeneInput');
-      const activeGene = gInputEl ? gInputEl.value : '';
+      const activeGene = gInputEl ? gInputEl.value.trim() : '';
       const matching = methData.find((m) => m.gene_symbol === activeGene) || methData[0];
       loadMethylartistPlot(matching.gene_symbol, matching.chrom, matching.start, matching.end);
     }
@@ -115,36 +125,47 @@ async function loadMethylartistPlot(gene, chrom, start, end) {
   const container = document.getElementById('methylartistContainer');
   if (!container) return;
 
+  if (!AppState.activeCaseId) {
+    container.innerHTML = '<div style="color: #94a3b8; text-align: center; padding: 3rem;">Please select an active clinical case to render methylation plots.</div>';
+    return;
+  }
+
   const gInput = document.getElementById('maGeneInput');
   const cInput = document.getElementById('maChromInput');
   const sInput = document.getElementById('maStartInput');
   const eInput = document.getElementById('maEndInput');
 
-  if (gInput && gene) gInput.value = gene;
-  if (cInput && chrom) cInput.value = chrom;
-  if (sInput && start) sInput.value = start;
-  if (eInput && end) eInput.value = end;
+  if (gInput && gene !== undefined && gene !== null) gInput.value = gene;
+  if (cInput && chrom !== undefined && chrom !== null) cInput.value = chrom;
+  if (sInput && start !== undefined && start !== null) sInput.value = start;
+  if (eInput && end !== undefined && end !== null) eInput.value = end;
 
-  const currentGene = (gInput && gInput.value) || gene || 'MLH1';
-  const currentChrom = (cInput && cInput.value) || chrom || 'chr3';
-  const currentStart = (sInput && sInput.value) || start || 36993100;
-  const currentEnd = (eInput && eInput.value) || end || 36993600;
+  const currentGene = (gInput ? gInput.value.trim() : (gene || '')).trim();
+  const currentChrom = (cInput ? cInput.value.trim() : (chrom || '')).trim();
+  const currentStart = (sInput ? sInput.value.trim() : (start || '')).toString().trim();
+  const currentEnd = (eInput ? eInput.value.trim() : (end || '')).toString().trim();
 
+  if (!currentGene && !currentChrom) {
+    container.innerHTML = '<div style="color: #94a3b8; text-align: center; padding: 3rem;">Please enter a gene symbol or chromosome coordinates to render epigenetic plot.</div>';
+    return;
+  }
+
+  const displayTarget = currentGene || `${currentChrom}:${Number(currentStart).toLocaleString()}-${Number(currentEnd).toLocaleString()}`;
   container.innerHTML = `
     <div style="color: #94a3b8; text-align: center; padding: 3rem;">
       <div class="spinner" style="margin: 0 auto 0.75rem auto;"></div>
-      Rendering authentic methylartist plot for <strong>${currentGene}</strong> (${currentChrom}:${Number(currentStart).toLocaleString()}-${Number(currentEnd).toLocaleString()})...
+      Querying verified 5mC calls for <strong>${displayTarget}</strong>...
     </div>
   `;
 
   try {
     const params = new URLSearchParams({
-      case_id: AppState.activeCaseId || 2,
-      gene: currentGene,
-      chrom: currentChrom,
-      start: currentStart,
-      end: currentEnd
+      case_id: AppState.activeCaseId
     });
+    if (currentGene) params.append('gene', currentGene);
+    if (currentChrom) params.append('chrom', currentChrom);
+    if (currentStart) params.append('start', currentStart);
+    if (currentEnd) params.append('end', currentEnd);
 
     const res = await fetch(`/api/methylation/methylartist?${params.toString()}`);
     if (!res.ok) {
@@ -165,7 +186,7 @@ async function loadMethylartistPlot(gene, chrom, start, end) {
         <div style="width: 50px; height: 50px; line-height: 50px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); color: #ef4444; font-size: 1.5rem; margin: 0 auto 1rem auto;">
           <i class="fa-solid fa-triangle-exclamation"></i>
         </div>
-        <h4 style="margin: 0 0 0.5rem 0; font-size: 1.15rem; color: #fca5a5;">No Methylation Data for "${currentGene}"</h4>
+        <h4 style="margin: 0 0 0.5rem 0; font-size: 1.15rem; color: #fca5a5;">No Methylation Data for "${displayTarget}"</h4>
         <p style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 1.25rem; line-height: 1.5;">
           ${err.message || 'No authentic methylation records found.'}<br>
           <strong style="color: #94a3b8;">Zero Simulation Policy:</strong> This platform does not generate fabricated exon models or synthetic CpG calls. Only verified sequenced loci with Dorado / modkit bedMethyl calls are plotted.

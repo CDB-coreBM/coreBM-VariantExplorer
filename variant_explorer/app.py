@@ -596,6 +596,8 @@ def create_app(db_path: Optional[str] = None) -> Flask:
     # -------------------------------------------------------------
     # Methylartist Epigenetic Visualization REST API
     # -------------------------------------------------------------
+    VALID_HUMAN_CHROMS = {f"chr{i}" for i in range(1, 23)} | {"chrX", "chrY", "chrM"}
+
     @app.route("/api/methylation/methylartist", methods=["GET"])
     def get_methylartist_svg():
         case_id_str = request.args.get("case_id")
@@ -603,6 +605,16 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         chrom = request.args.get("chrom", "").strip()
         req_start = request.args.get("start")
         req_end = request.args.get("end")
+
+        # Normalize and validate chromosome contig
+        if chrom:
+            if not chrom.startswith("chr") and f"chr{chrom}" in VALID_HUMAN_CHROMS:
+                chrom = f"chr{chrom}"
+            if chrom not in VALID_HUMAN_CHROMS:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Contig '{chrom}' is invalid. Human chromosomes must be chr1-chr22, chrX, chrY, or chrM. Zero Simulation Policy enforced."
+                }), 400
 
         found_record = False
         mean_pct = 0.0
@@ -624,65 +636,65 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                 pass
 
         conn = get_db_connection(app.config.get("DB_PATH"))
-        case_id = resolve_case_id(conn, case_id_str) if case_id_str else 2
+        case_id = resolve_case_id(conn, case_id_str) if case_id_str else None
 
         if case_id:
             try:
                 cursor = conn.cursor()
-                # Multi-tier lookup: Exact gene match first, then partial gene match, then coordinate overlap
-                cursor.execute("""
-                    SELECT * FROM methylation_regions
-                    WHERE case_id = ? AND (
-                        gene_symbol = ? 
-                        OR (chrom = ? AND start <= ? AND end >= ?)
-                        OR gene_symbol LIKE ?
-                    )
-                    ORDER BY 
-                        CASE 
-                            WHEN gene_symbol = ? THEN 1 
-                            WHEN gene_symbol LIKE ? THEN 2 
-                            ELSE 3 
-                        END ASC
-                    LIMIT 1
-                """, (case_id, gene, chrom, end, start, f"%{gene}%", gene, f"%{gene}%"))
-                row = cursor.fetchone()
+                row = None
+                
+                # Priority 1: Match by exact gene symbol
+                if gene:
+                    cursor.execute("""
+                        SELECT * FROM methylation_regions
+                        WHERE case_id = ? AND UPPER(gene_symbol) = ?
+                        LIMIT 1
+                    """, (case_id, gene))
+                    row = cursor.fetchone()
+
+                # Priority 2: Coordinate overlap within valid chromosome
+                if not row and chrom and start > 0 and end > start:
+                    cursor.execute("""
+                        SELECT * FROM methylation_regions
+                        WHERE case_id = ? AND chrom = ? AND NOT (end < ? OR start > ?)
+                        ORDER BY ABS((start + end) / 2 - ?) ASC
+                        LIMIT 1
+                    """, (case_id, chrom, start, end, (start + end) // 2))
+                    row = cursor.fetchone()
+
+                # Priority 3: Prefix match only if gene symbol has at least 3 letters
+                if not row and gene and len(gene) >= 3:
+                    cursor.execute("""
+                        SELECT * FROM methylation_regions
+                        WHERE case_id = ? AND UPPER(gene_symbol) LIKE ?
+                        LIMIT 1
+                    """, (case_id, f"{gene}%"))
+                    row = cursor.fetchone()
+
                 if row:
                     row_dict = dict(row)
                     found_record = True
-                    gene = row_dict.get("gene_symbol", gene)
+                    gene = row_dict.get("gene_symbol") or gene
                     mean_pct = float(row_dict.get("percent_modified") or row_dict.get("mean_methylated_pct") or 0.0)
                     hp1_pct = row_dict.get("hp1_percent")
                     hp2_pct = row_dict.get("hp2_percent")
                     is_asm = bool(row_dict.get("is_asm", 0))
                     cov = float(row_dict.get("n_valid_cov") or 30.0)
                     region_type = row_dict.get("region_type", region_type)
-                    chrom = row_dict.get("chrom", chrom)
-                    start = int(row_dict.get("start", start))
-                    end = int(row_dict.get("end", end))
+                    chrom = row_dict.get("chrom") or chrom
+                    start = int(row_dict.get("start") or start)
+                    end = int(row_dict.get("end") or end)
             except Exception as e:
                 app.logger.warning(f"Error querying methylation record: {e}")
             finally:
                 conn.close()
 
-        # Check CLINICAL_METHYLATION_TARGETS if not in database
-        if not found_record and gene in CLINICAL_METHYLATION_TARGETS:
-            t = CLINICAL_METHYLATION_TARGETS[gene]
-            found_record = True
-            chrom = t["chrom"]
-            start = t["start"]
-            end = t["end"]
-            region_type = t.get("region_type", "Promoter CpG Island")
-            is_asm = bool(t.get("is_imprinted", False))
-            mean_pct = 50.0 if is_asm else 5.0
-            hp1_pct = 95.0 if is_asm else mean_pct
-            hp2_pct = 5.0 if is_asm else mean_pct
-            cov = 45.0
-
-        # Strict Zero-Simulation Policy: If no authentic record exists, return HTTP 404
+        # Strict Zero-Simulation Policy: If no authentic record exists in the sequenced database, return HTTP 404
         if not found_record:
+            locus_display = f"{chrom}:{start:,}-{end:,}" if chrom and start and end else (chrom or "unspecified locus")
             return jsonify({
                 "status": "error",
-                "message": f"No authentic methylation data found for gene '{gene}' ({chrom}:{start}-{end}) in case {case_id_str or case_id}. Zero Simulation Policy enforced."
+                "message": f"No authentic methylation data found for '{gene or locus_display}' in sequenced case {case_id_str or case_id}. Zero Simulation Policy enforced."
             }), 404
 
         from .methylartist_visualizer import generate_methylartist_svg
@@ -1003,15 +1015,28 @@ def create_app(db_path: Optional[str] = None) -> Flask:
             },
             "tracks": [
                 {
-                    "name": "Clinical RefSeq & CMRG Medical Genes (GRCh38)",
+                    "name": "NCBI RefSeq Genes",
+                    "type": "annotation",
+                    "format": "refgene",
+                    "url": "https://s3.amazonaws.com/igv.org.genomes/hg38/ncbiRefSeq.sorted.txt.gz",
+                    "indexURL": "https://s3.amazonaws.com/igv.org.genomes/hg38/ncbiRefSeq.sorted.txt.gz.tbi",
+                    "order": 1,
+                    "visibilityWindow": -1,
+                    "displayMode": "EXPANDED",
+                    "color": "#0284c7",
+                    "height": 70
+                },
+                {
+                    "name": "CMRG Challenging Medical Genes (Benchmark)",
                     "type": "annotation",
                     "format": "bed",
                     "url": "/api/stream/files/variant_explorer/static/vendor/clinical_genes.bed.gz",
                     "indexURL": "/api/stream/files/variant_explorer/static/vendor/clinical_genes.bed.gz.tbi",
-                    "order": 1,
+                    "order": 2,
+                    "visibilityWindow": -1,
                     "displayMode": "EXPANDED",
-                    "color": "#0284c7",
-                    "height": 70
+                    "color": "#38bdf8",
+                    "height": 45
                 },
                 {
                     "name": "ONT Depth Coverage (PromethION)",
@@ -1019,8 +1044,8 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                     "format": "bedgraph",
                     "url": "/api/stream/files/data_store/samples/HG002/HG002_coverage.bedgraph.gz",
                     "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_coverage.bedgraph.gz.tbi",
-                    "order": 2,
-                    "height": 55,
+                    "order": 3,
+                    "height": 50,
                     "color": "#00a896",
                     "min": 0,
                     "max": 120
@@ -1031,13 +1056,14 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                     "format": "bam",
                     "url": "/api/stream/files/data_store/samples/HG002/HG002_phased.bam",
                     "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_phased.bam.bai",
-                    "order": 2,
-                    "height": 280,
+                    "order": 4,
+                    "height": 220,
                     "colorBy": "tag",
                     "colorByTag": "HP",
                     "displayMode": "EXPANDED",
-                    "samplingDepth": 100,
-                    "visibilityWindow": 250000
+                    "samplingDepth": 30,
+                    "visibilityWindow": 30000,
+                    "maxRows": 50
                 },
                 {
                     "name": "HG002 Medical Genes SV Benchmark (CMRG SV v1.00)",
@@ -1045,8 +1071,8 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                     "format": "vcf",
                     "url": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_SV.vcf.gz",
                     "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_SV.vcf.gz.tbi",
-                    "order": 3,
-                    "height": 65,
+                    "order": 5,
+                    "height": 55,
                     "displayMode": "EXPANDED",
                     "visibilityWindow": -1,
                     "color": "#a855f7"
@@ -1057,8 +1083,8 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                     "format": "vcf",
                     "url": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz",
                     "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz.tbi",
-                    "order": 4,
-                    "height": 55,
+                    "order": 6,
+                    "height": 50,
                     "displayMode": "EXPANDED",
                     "visibilityWindow": -1,
                     "color": "#10b981"
@@ -1069,8 +1095,8 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                     "format": "vcf",
                     "url": "/api/stream/files/data_store/samples/HG002/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz",
                     "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi",
-                    "order": 5,
-                    "height": 65,
+                    "order": 7,
+                    "height": 55,
                     "visibilityWindow": 100000,
                     "color": "#ef4444"
                 },
@@ -1080,10 +1106,10 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                     "format": "bed",
                     "url": "/api/stream/files/data_store/samples/HG002/hg002_methylation.bed.gz",
                     "indexURL": "/api/stream/files/data_store/samples/HG002/hg002_methylation.bed.gz.tbi",
-                    "order": 6,
+                    "order": 8,
                     "displayMode": "EXPANDED",
                     "color": "#10b981",
-                    "height": 60
+                    "height": 50
                 }
             ]
         }
