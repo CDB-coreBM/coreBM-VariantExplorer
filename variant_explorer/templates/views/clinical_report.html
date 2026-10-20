@@ -21,7 +21,7 @@
       </div>
       <div style="text-align: right;">
         <div style="font-size: 1.1rem; font-weight: 700; color: #0077b6;">DIAGNOSTIC REPORT</div>
-        <div style="font-size: 0.85rem; color: #64748b;" id="reportDate">Date: 2026-09-10</div>
+        <div style="font-size: 0.85rem; color: #64748b;" id="reportDate">Date: -</div>
         <div style="font-size: 0.85rem; color: #64748b;" id="reportCaseIdHeader">Case: -</div>
       </div>
     </div>
@@ -33,7 +33,7 @@
         <div><strong>Specimen ID:</strong> <span id="repSpecimenId">-</span></div>
         <div><strong>Assay:</strong> Whole Genome ONT Long-Read</div>
         <div><strong>Mean Depth:</strong> <span id="repDepth">-</span></div>
-        <div><strong>Status:</strong> <span class="badge badge-pathogenic">Actionable Findings</span></div>
+        <div><strong>Status:</strong> <span class="badge badge-secondary" id="repOverallStatus">Under Review</span></div>
       </div>
     </div>
 
@@ -127,18 +127,18 @@
     <div style="border-top: 2px solid #e2e8f0; padding-top: 1rem; margin-top: 2rem;">
       <h4 style="font-size: 0.9rem; font-weight: 700; color: #0b2545; margin-bottom: 0.5rem;">Diagnostic Interpretation & Clinical Commentary</h4>
       <p style="font-size: 0.85rem; color: #334155; line-height: 1.6;" id="repCommentary">
-        Long-read Oxford Nanopore sequencing identifies a pathogenic somatic TP53 missense variant (p.Arg175His) at 43.1% VAF, co-occurring with an actionable EGFR exon 21 p.Leu858R mutation (52.2% VAF). In addition, high promoter hypermethylation of MLH1 (78.5% 5mC) is detected, consistent with somatic epigenetic MMR silencing. Structural variant calling reveals a 14.2 kb deletion spanning exons 1-6 of MSH2. Multi-modal correlation confirms high genomic instability.
+        No diagnostic commentary entered yet by the clinical molecular geneticist.
       </p>
 
       <div style="display: flex; justify-content: space-between; margin-top: 2rem; font-size: 0.85rem; color: #475569;">
         <div>
           <div><strong>Reported by:</strong></div>
-          <div style="margin-top: 0.5rem;">Dr. J. L. Villanueva, PhD</div>
+          <div id="repReportedBy" style="margin-top: 0.5rem; color: #64748b;">Pending Clinical Review</div>
           <div style="font-size: 0.75rem;">Clinical Molecular Geneticist, CDB Hospital Clínic</div>
         </div>
         <div style="text-align: right;">
           <div><strong>Approved by:</strong></div>
-          <div style="margin-top: 0.5rem;">Hospital Clínic Genomics Board</div>
+          <div id="repApprovedBy" style="margin-top: 0.5rem; color: #64748b;">Pending Board Review</div>
           <div style="font-size: 0.75rem;">Diagnostic Molecular Pathology Unit</div>
         </div>
       </div>

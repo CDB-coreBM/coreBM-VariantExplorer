@@ -129,9 +129,11 @@ async function fetchActiveCaseDetails() {
     renderNoCaseSelectedState();
     return;
   }
+  const requestedCaseId = AppState.activeCaseId;
   try {
-    const res = await fetch(`/api/cases/${AppState.activeCaseId}`);
+    const res = await fetch(`/api/cases/${requestedCaseId}`);
     const data = await res.json();
+    if (AppState.activeCaseId !== requestedCaseId) return;
     const caseData = data.data || data;
     if (data.status === 'error') {
       showToast(data.message || 'Error fetching case', 'error');
@@ -334,13 +336,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadCaseQcAndPhasing() {
   if (!AppState.activeCaseId) return;
-  const caseId = AppState.activeCaseId;
+  const requestedCaseId = AppState.activeCaseId;
   const repContainer = document.getElementById('repeatsTableContainer');
 
   // Fetch Tandem Repeat Expansions (TRGT / Straglr long-read assay)
   if (repContainer) {
     try {
-      const res = await fetch(`/api/repeats?case_id=${caseId}`);
+      const res = await fetch(`/api/repeats?case_id=${requestedCaseId}`);
+      if (AppState.activeCaseId !== requestedCaseId) return;
       if (res.ok) {
         const data = await res.json();
         const repeats = data.repeat_expansions || [];

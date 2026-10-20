@@ -222,70 +222,85 @@ def calculate_dynamic_coverage(
     db_conn: Optional[sqlite3.Connection] = None
 ) -> List[Dict[str, Any]]:
     """
-    Calculates realistic ONT read-depth binned coverage profile based on:
-      - Patient base mean depth
-      - Heterozygous SV deletions (drop to ~0.5x depth)
-      - Duplications (increase to ~1.5x - 2.0x depth)
-      - Exonic capture / GC fluctuations
+    Computes authentic read-depth binned coverage profile from the case's alignment (BAM) file.
+    Strict Zero-Simulation Policy:
+    If no alignment file exists for this case, returns an empty list (available = False).
+    No synthetic sine/cosine waves, no fabricated baseline floors.
     """
+    import os
     close_at_end = False
     if db_conn is None:
         db_conn = get_db_connection()
         close_at_end = True
 
-    cursor = db_conn.cursor()
-    cursor.execute("SELECT mean_depth FROM cases WHERE id = ?", (case_id,))
-    case_row = cursor.fetchone()
-    base_depth = case_row["mean_depth"] if case_row and case_row["mean_depth"] else 55.0
-    if base_depth < 10.0:
-        base_depth = 55.0
+    from .models import get_sample_file_by_type
+    bam_record = get_sample_file_by_type(case_id, "bam", db_conn=db_conn)
+    if not bam_record or not bam_record.get("file_path"):
+        if close_at_end:
+            db_conn.close()
+        return []
 
-    # Retrieve SVs in window that affect read depth (DEL and DUP)
-    norm_chrom = chrom if chrom.startswith("chr") else "chr" + chrom
-    cursor.execute("""
-        SELECT sv_type, start, end, vaf FROM variants_sv
-        WHERE case_id = ? AND chrom = ? AND (start <= ? AND end >= ?)
-    """, (case_id, norm_chrom, end, start))
-    sv_rows = [dict(r) for r in cursor.fetchall()]
+    bam_path = bam_record["file_path"]
+    if not os.path.isabs(bam_path):
+        safe_base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        bam_path = os.path.join(safe_base, bam_path)
+
+    if not os.path.isfile(bam_path):
+        if close_at_end:
+            db_conn.close()
+        return []
 
     if close_at_end:
         db_conn.close()
 
-    span = max(100, end - start)
-    bin_size = max(1, span // num_bins)
-    
-    bins = []
-    for b_idx in range(num_bins):
-        b_start = start + (b_idx * bin_size)
-        b_end = min(end, b_start + bin_size)
-        mid_pos = (b_start + b_end) // 2
+    try:
+        import pysam
+        with pysam.AlignmentFile(bam_path, "rb") as af:
+            # Handle contig naming convention (chr17 vs 17)
+            ref_chrom = chrom
+            if ref_chrom not in af.references:
+                if ref_chrom.startswith("chr") and ref_chrom[3:] in af.references:
+                    ref_chrom = ref_chrom[3:]
+                elif not ref_chrom.startswith("chr") and ("chr" + ref_chrom) in af.references:
+                    ref_chrom = "chr" + ref_chrom
+                else:
+                    return []
 
-        # Natural sequence-context variation
-        var_factor = 1.0 + 0.18 * math.sin(mid_pos / 1400.0) * math.cos(mid_pos / 3200.0)
-        depth_val = base_depth * var_factor
+            span = max(100, end - start)
+            bin_size = max(1, span // num_bins)
+            bins = []
 
-        # Check for SV overlap
-        for sv in sv_rows:
-            s_type = sv["sv_type"].upper()
-            s_start = sv["start"]
-            s_end = sv["end"] or (s_start + 1000)
-            if s_start <= mid_pos <= s_end:
-                if s_type == "DEL":
-                    # Drop by VAF: e.g. 50% VAF drop = 0.5x depth
-                    vaf = sv.get("vaf") or 0.5
-                    depth_val = max(2.0, depth_val * (1.0 - vaf * 0.95))
-                elif s_type == "DUP":
-                    vaf = sv.get("vaf") or 0.5
-                    depth_val = depth_val * (1.0 + vaf)
+            try:
+                cov_tuple = af.count_coverage(ref_chrom, start, end, quality_threshold=0)
+                a_arr, c_arr, g_arr, t_arr = cov_tuple
+                total_len = len(a_arr)
+                all_depths = [a_arr[i] + c_arr[i] + g_arr[i] + t_arr[i] for i in range(total_len)]
+            except Exception:
+                all_depths = []
 
-        bins.append({
-            "chrom": norm_chrom,
-            "start": b_start,
-            "end": b_end,
-            "score": round(max(0.0, depth_val), 1)
-        })
+            for b_idx in range(num_bins):
+                b_start = start + (b_idx * bin_size)
+                b_end = min(end, b_start + bin_size)
+                if b_start >= b_end:
+                    continue
 
-    return bins
+                offset_start = max(0, b_start - start)
+                offset_end = min(len(all_depths), b_end - start)
+                if offset_end > offset_start and all_depths:
+                    sub = all_depths[offset_start:offset_end]
+                    mean_bin_depth = round(sum(sub) / len(sub), 1)
+                else:
+                    mean_bin_depth = 0.0
+
+                bins.append({
+                    "chrom": chrom,
+                    "start": b_start,
+                    "end": b_end,
+                    "score": mean_bin_depth
+                })
+            return bins
+    except Exception:
+        return []
 
 
 def get_igv_snv_features(

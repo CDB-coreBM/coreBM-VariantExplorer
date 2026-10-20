@@ -3,6 +3,8 @@ let svData = [];
 let svTotal = 0;
 let allCaseSVs = [];
 
+let circosLoadedCaseId = null;
+
 async function loadSvVariants(resetPage = false) {
   if (!AppState.activeCaseId) {
     const tbody = document.getElementById('svTableBody');
@@ -12,6 +14,8 @@ async function loadSvVariants(resetPage = false) {
     return;
   }
   if (resetPage) AppState.svPage = 1;
+
+  const requestedCaseId = AppState.activeCaseId;
 
   const pEl = document.getElementById('svPanelFilter');
   const gEl = document.getElementById('svGeneFilter');
@@ -28,7 +32,7 @@ async function loadSvVariants(resetPage = false) {
   const minSupport = (sEl && sEl.value) || '';
 
   const params = new URLSearchParams({
-    case_id: AppState.activeCaseId,
+    case_id: requestedCaseId,
     page: AppState.svPage,
     limit: AppState.svPageSize,
     gene,
@@ -49,8 +53,10 @@ async function loadSvVariants(resetPage = false) {
   // 1. Fetch and render paginated SV table
   try {
     const res = await fetch(`/api/variants/sv?${params.toString()}`);
+    if (AppState.activeCaseId !== requestedCaseId) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch SVs`);
     const result = await res.json();
+    if (AppState.activeCaseId !== requestedCaseId) return;
     svData = result.structural_variants || [];
     svTotal = result.total_records || result.total || 0;
 
@@ -64,21 +70,25 @@ async function loadSvVariants(resetPage = false) {
     }
   }
 
-  // 2. Fetch full cohort SVs for interactive Circos plot (isolated try/catch)
-  try {
-    const circosRes = await fetch(`/api/variants/sv/circos?case_id=${AppState.activeCaseId}`);
-    if (circosRes.ok) {
-      const circosJson = await circosRes.json();
-      allCaseSVs = circosJson.structural_variants || [];
-      if (typeof renderCircosPlot === 'function') {
-        renderCircosPlot(allCaseSVs);
+  // 2. Fetch full cohort SVs for interactive Circos plot only if case changed or not yet loaded
+  if (circosLoadedCaseId !== requestedCaseId) {
+    try {
+      const circosRes = await fetch(`/api/variants/sv/circos?case_id=${requestedCaseId}`);
+      if (AppState.activeCaseId !== requestedCaseId) return;
+      if (circosRes.ok) {
+        const circosJson = await circosRes.json();
+        allCaseSVs = circosJson.structural_variants || [];
+        circosLoadedCaseId = requestedCaseId;
+        if (typeof renderCircosPlot === 'function') {
+          renderCircosPlot(allCaseSVs);
+        }
       }
-    }
-  } catch (circosErr) {
-    console.warn('Circos plot rendering notice:', circosErr);
-    const circosContainer = document.getElementById('circosSvgContainer');
-    if (circosContainer && (!allCaseSVs || allCaseSVs.length === 0)) {
-      circosContainer.innerHTML = '<div style="color: #94a3b8; text-align: center; padding: 2rem;"><i class="fa-solid fa-circle-exclamation fa-2x" style="color:#f59e0b; margin-bottom: 0.5rem;"></i><br>Circos plot standing by for complex rearrangements.</div>';
+    } catch (circosErr) {
+      console.warn('Circos plot rendering notice:', circosErr);
+      const circosContainer = document.getElementById('circosSvgContainer');
+      if (circosContainer && (!allCaseSVs || allCaseSVs.length === 0)) {
+        circosContainer.innerHTML = '<div style="color: #94a3b8; text-align: center; padding: 2rem;"><i class="fa-solid fa-circle-exclamation fa-2x" style="color:#f59e0b; margin-bottom: 0.5rem;"></i><br>Circos plot standing by for complex rearrangements.</div>';
+      }
     }
   }
 }

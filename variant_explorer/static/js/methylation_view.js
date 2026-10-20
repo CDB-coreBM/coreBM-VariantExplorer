@@ -25,8 +25,9 @@ async function loadMethylationRegions() {
   const minPercent = (mEl && mEl.value) || '';
   const asmOnly = (aEl && aEl.checked) ? 'true' : 'false';
 
+  const requestedCaseId = AppState.activeCaseId;
   const params = new URLSearchParams({
-    case_id: AppState.activeCaseId,
+    case_id: requestedCaseId,
     gene: gene || target,
     min_percent: minPercent,
     asm_only: asmOnly,
@@ -39,7 +40,9 @@ async function loadMethylationRegions() {
 
   try {
     const res = await fetch(`/api/methylation?${params.toString()}`);
+    if (AppState.activeCaseId !== requestedCaseId) return;
     const result = await res.json();
+    if (AppState.activeCaseId !== requestedCaseId) return;
     methData = result.regions || result.methylation_regions || [];
 
     renderMethTable(methData);

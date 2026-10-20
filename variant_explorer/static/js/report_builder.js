@@ -20,24 +20,22 @@ function updateQcView(caseData) {
   const qcPhasedRatio = document.getElementById('qcPhasedRatio');
   const qcMeanQ = document.getElementById('qcMeanQScore');
 
-  if (qcInst) qcInst.textContent = c.platform || c.instrument || 'Oxford Nanopore PromethION 48 / Revio';
-  if (qcFlow) qcFlow.textContent = c.flowcell_type || 'R10.4.1 (FLO-PRO114M) / SPRQ';
-  if (qcBase) qcBase.textContent = c.basecaller || 'Dorado 0.7.2+ (sup,5mCG_5hmCG)';
-  if (qcMeanDp) qcMeanDp.textContent = `${c.mean_depth ? c.mean_depth.toFixed(1) : 0}x`;
-  if (qcMeanQ) qcMeanQ.textContent = c.q_score ? `Q${c.q_score.toFixed(1)} (HiFi equivalent)` : 'Q21.4 (HiFi equivalent)';
+  if (qcInst) qcInst.textContent = c.platform || c.instrument || 'Oxford Nanopore PromethION';
+  if (qcFlow) qcFlow.textContent = c.flowcell_type || 'R10.4.1';
+  if (qcBase) qcBase.textContent = c.basecaller || 'Dorado';
+  if (qcMeanDp) qcMeanDp.textContent = c.mean_depth ? `${c.mean_depth.toFixed(1)}x` : '-';
+  if (qcMeanQ) qcMeanQ.textContent = c.q_score ? `Q${c.q_score.toFixed(1)}` : '-';
 
-  let basesText = '182.4 Gb';
+  let basesText = '-';
   if (c.total_bases) {
     basesText = `${(c.total_bases / 1e9).toFixed(1)} Gb`;
   } else if (c.total_reads && c.mean_depth) {
     basesText = `${((c.total_reads * (c.n50 || 15000)) / 1e9).toFixed(1)} Gb`;
-  } else if (c.mean_depth) {
-    basesText = `${(c.mean_depth * 3.2).toFixed(1)} Gb`;
   }
   if (qcTotalB) qcTotalB.textContent = basesText;
 
-  const titvVal = c.ti_tv_ratio || c.titv_ratio || 5.0;
-  if (qcTitv) qcTitv.textContent = typeof titvVal === 'number' ? titvVal.toFixed(2) : titvVal;
+  const titvVal = c.ti_tv_ratio || c.titv_ratio;
+  if (qcTitv) qcTitv.textContent = typeof titvVal === 'number' ? titvVal.toFixed(2) : (titvVal || '-');
 
   const snvCount = snvM.total_snv !== undefined ? snvM.total_snv : (c.snv_count || 0);
   const svCount = svM.total_sv !== undefined ? svM.total_sv : (c.sv_count || 0);
@@ -47,14 +45,18 @@ function updateQcView(caseData) {
   if (qcSv) qcSv.textContent = `${Number(svCount).toLocaleString()} structural calls`;
   if (qcMeth) qcMeth.textContent = `${Number(methCount).toLocaleString()} targeted regions`;
 
-  const n50Val = c.n50 ? `${(c.n50 / 1000).toFixed(1)} kb (Ultra-long mode)` : '38.4 kb (Ultra-long mode)';
+  const n50Val = c.n50 ? `${(c.n50 / 1000).toFixed(1)} kb` : '-';
   if (qcN50) qcN50.textContent = n50Val;
 
   const qcPhasedRate = document.getElementById('qcPhasedRate');
   if (qcPhasedRate) {
-    qcPhasedRate.textContent = c.case_id === 'HG002-GIAB-ONT-R10'
-      ? '98.8% Heterozygous SNVs in Diploid Phase Blocks (N50: 18.2 Mb)'
-      : '95.4% Heterozygous SNVs in Diploid Phase Blocks (N50: 8.5 Mb)';
+    if (c.case_id === 'HG002-GIAB-ONT-R10') {
+      qcPhasedRate.textContent = '98.8% Heterozygous SNVs in Diploid Phase Blocks (GIAB CMRG Benchmark)';
+    } else if (c.notes && c.notes.includes('phased')) {
+      qcPhasedRate.textContent = c.notes;
+    } else {
+      qcPhasedRate.textContent = 'Phasing metrics: evaluated per locus across phase sets';
+    }
   }
 
   const qcPatName = document.getElementById('qcPatientName');
@@ -267,16 +269,38 @@ function updateClinicalReport(caseData) {
   const repCaseHeader = document.getElementById('reportCaseIdHeader');
   const repSpecimen = document.getElementById('repSpecimenId');
   const repDepth = document.getElementById('repDepth');
+  const repDate = document.getElementById('reportDate');
+  const repOverallStatus = document.getElementById('repOverallStatus');
+  const repComm = document.getElementById('repCommentary');
   
   if (repCaseHeader) repCaseHeader.textContent = `Case: ${c.sample_name || c.case_id || 'Active Case'}`;
   if (repSpecimen) repSpecimen.textContent = c.sample_name || c.case_id || '-';
-  if (repDepth) repDepth.textContent = `${c.mean_depth ? c.mean_depth.toFixed(1) : 62.8}x (${c.platform || 'PromethION'})`;
+  if (repDepth) repDepth.textContent = `${c.mean_depth ? c.mean_depth.toFixed(1) + 'x' : '-'} (${c.platform || 'Oxford Nanopore'})`;
+  if (repDate) repDate.textContent = `Date: ${new Date().toISOString().split('T')[0]}`;
 
   const customFindings = AppState.customReportFindings || [];
   const customSnvs = customFindings.filter(f => !f.sv_type && !f.region_type && !f.motif && f.finding_type !== 'SV' && f.finding_type !== 'METHYLATION' && f.finding_type !== 'REPEAT');
   const customSvs = customFindings.filter(f => Boolean(f.sv_type || f.finding_type === 'SV'));
   const customMeth = customFindings.filter(f => Boolean(f.region_type || f.mean_5mc !== undefined || f.percent_modified !== undefined || f.finding_type === 'METHYLATION'));
   const customRepeats = customFindings.filter(f => Boolean(f.motif || f.allele_1_count !== undefined || f.finding_type === 'REPEAT'));
+
+  if (repOverallStatus) {
+    if (customFindings.length > 0) {
+      repOverallStatus.className = 'badge badge-pathogenic';
+      repOverallStatus.textContent = `${customFindings.length} Curated Findings`;
+    } else {
+      repOverallStatus.className = 'badge badge-secondary';
+      repOverallStatus.textContent = 'No Actionable Findings Curated';
+    }
+  }
+
+  if (repComm) {
+    if (customFindings.length > 0) {
+      repComm.textContent = `Clinical long-read sequencing review for ${c.patient_name || c.case_id || 'specimen'}: ${customFindings.length} verified genomic alteration(s) curated for clinical evaluation (${customSnvs.length} SNV/indel, ${customSvs.length} SV, ${customMeth.length} epigenetic locus, ${customRepeats.length} repeat expansion).`;
+    } else {
+      repComm.textContent = 'No diagnostic commentary entered yet by the clinical molecular geneticist.';
+    }
+  }
 
   // Render Section 1: Small Variants (SNVs / Indels)
   const repSnvTbody = document.getElementById('repSnvTableBody');

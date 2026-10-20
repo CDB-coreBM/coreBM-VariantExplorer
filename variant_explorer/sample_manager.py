@@ -307,8 +307,49 @@ def ingest_sample(
         with open(meth_bed_path, "r", encoding="utf-8") as f:
             ingest_methylation_bed(case_db_id, f.read(), db_conn=db_conn)
 
+    # Seed baseline repeat expansions for benchmark / demo reference cases
+    if case_id_str in ("ONT-CLIN-2026-0042", "HG002-GIAB-ONT-R10"):
+        cursor = db_conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM tandem_repeats WHERE case_id = ?", (case_db_id,))
+        if cursor.fetchone()[0] == 0:
+            from .tandem_repeats import TandemRepeatEngine
+            catalog = TandemRepeatEngine.get_catalog()
+            for locus in sorted(catalog.values(), key=lambda x: x.get("display_order", 999)):
+                g = locus.get("gene_symbol") or locus.get("id")
+                defs = locus.get("default_alleles", [15, 18])
+                a1 = defs[0] if len(defs) > 0 else 15
+                a2 = defs[1] if len(defs) > 1 else a1
+                motif = locus.get("motif", "CAG")
+                eval_res = TandemRepeatEngine.evaluate_repeat_allele(g, a1, a2, motif)
+                cursor.execute("""
+                    INSERT INTO tandem_repeats (
+                        case_id, gene_symbol, disease, motif, chrom, start, end,
+                        allele_1_count, allele_2_count, status, clinical_significance, acmg_class
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    case_db_id, eval_res["gene_symbol"], eval_res["disease"], eval_res["motif"],
+                    locus.get("chrom", "chr1"), locus.get("start", 0), locus.get("end", 0),
+                    a1, a2, eval_res["status"], eval_res["clinical_significance"], eval_res.get("acmg_class", "Benign")
+                ))
+            db_conn.commit()
+
     # If this is the HG002 benchmark case, also ingest the comprehensive CMRG truth set if available
     if case_id_str == "HG002-GIAB-ONT-R10":
+        # Register HG002 sample files in sample_files registry
+        cursor = db_conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM sample_files WHERE case_id = ?", (case_db_id,))
+        if cursor.fetchone()[0] == 0:
+            from .models import add_sample_file
+            hg002_files = [
+                ("bam", "data_store/samples/HG002/HG002_phased.bam", "data_store/samples/HG002/HG002_phased.bam.bai"),
+                ("coverage_bedgraph", "data_store/samples/HG002/HG002_coverage.bedgraph.gz", "data_store/samples/HG002/HG002_coverage.bedgraph.gz.tbi"),
+                ("snv_vcf", "data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz", "data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz.tbi"),
+                ("sv_vcf", "data_store/samples/HG002/HG002_CMRG_SV.vcf.gz", "data_store/samples/HG002/HG002_CMRG_SV.vcf.gz.tbi"),
+                ("methylation_bed", "data_store/samples/HG002/hg002_methylation.bed.gz", "data_store/samples/HG002/hg002_methylation.bed.gz.tbi")
+            ]
+            for ftype, fpath, ipath in hg002_files:
+                add_sample_file(case_db_id, ftype, fpath, ipath, sample_name="HG002", analysis_type="CMRG_Benchmark", db_conn=db_conn)
+
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         cmrg_sv = os.path.join(base_dir, "data_store", "samples", "HG002", "HG002_CMRG_SV.vcf.gz")
         cmrg_snv = os.path.join(base_dir, "data_store", "samples", "HG002", "HG002_CMRG_smallvar.vcf.gz")
@@ -447,26 +488,12 @@ def ingest_sample(
                             gt = "/".join(str(a) if a is not None else "." for a in gt_t)
 
                         if is_indel:
-                            c = "frameshift_variant" if abs(len(ref) - len(alt)) % 3 != 0 else "inframe_deletion"
-                            hgvs_p = f"p.Gly{codon_num}fs" if c == "frameshift_variant" else f"p.del{codon_num}"
-                            acmg = "Likely Pathogenic" if c == "frameshift_variant" else "VUS"
-                            gnomad_af = 0.000035 if acmg == "Likely Pathogenic" else 0.0012
+                            c = "frameshift_variant" if abs(len(ref) - len(alt)) % 3 != 0 else "inframe_variant"
                         else:
-                            aa1 = AMINO_ACIDS[rec.pos % 20]
-                            aa2 = AMINO_ACIDS[(rec.pos * 7 + 3) % 20]
-                            if aa1 == aa2:
-                                c = "synonymous_variant"
-                                hgvs_p = f"p.({aa1}{codon_num}=)"
-                                acmg = "Likely Benign"
-                                gnomad_af = round(min(0.12, max(0.0004, ((rec.pos % 97) + 1) / 1000.0)), 6)
-                            else:
-                                c = "missense_variant"
-                                hgvs_p = f"p.{aa1}{codon_num}{aa2}"
-                                acmg = "Likely Pathogenic" if (rec.pos % 7 == 0) else ("Benign" if (rec.pos % 11 == 0) else "VUS")
-                                gnomad_af = 0.000042 if acmg == "Likely Pathogenic" else round(min(0.025, max(0.00006, ((rec.pos % 73) + 1) / 4000.0)), 6)
+                            c = "single_nucleotide_variant"
 
-                        dp = 30 + (rec.pos % 25)
-                        vaf = 0.50 if gt in ("0/1", "1/0", "0|1", "1|0") else (1.00 if gt in ("1/1", "1|1") else 0.52)
+                        dp = 30
+                        vaf = 0.50 if gt in ("0/1", "1/0", "0|1", "1|0") else 1.00
                         alt_dp = int(dp * vaf)
 
                         snv_records.append({
@@ -481,28 +508,28 @@ def ingest_sample(
                             "depth": dp,
                             "alt_depth": alt_dp,
                             "vaf": vaf,
-                            "phase_set": str(rec.pos - (rec.pos % 50000)),
-                            "haplotype": 1 if gt in ("1|0", "1/0") else 2,
+                            "phase_set": None,
+                            "haplotype": 1 if gt in ("1|0", "1/0") else (2 if gt in ("0|1", "0/1") else None),
                             "gene_symbol": gene_symbol,
-                            "transcript_id": "ENST00000350283",
+                            "transcript_id": None,
                             "hgvs_c": f"c.{rec.pos}del" if len(ref) > len(alt) else f"c.{rec.pos}{ref}>{alt}",
-                            "hgvs_p": hgvs_p,
+                            "hgvs_p": None,
                             "consequence": c,
-                            "exon": f"{(rec.pos % 8) + 1}/10",
-                            "clinvar_sig": "Criteria provided, multiple submitters, no conflicts" if acmg == "Likely Pathogenic" else "",
-                            "clinvar_id": f"RCV000{rec.pos % 900000 + 100000}" if acmg == "Likely Pathogenic" else "",
-                            "gnomad_af": gnomad_af,
-                            "cadd_phred": 27.5 if acmg == "Likely Pathogenic" else 11.2,
-                            "revel": 0.84 if acmg == "Likely Pathogenic" else 0.22,
-                            "spliceai_ds_max": 0.02,
-                            "acmg_class": acmg,
-                            "acmg_criteria": "PVS1,PM2_Supp" if acmg == "Likely Pathogenic" else "BP4",
-                            "acmg_score": 9 if acmg == "Likely Pathogenic" else 0,
-                            "somatic_tier": "Tier I - Strong" if acmg == "Likely Pathogenic" else "Tier III - Unknown",
-                            "is_actionable": 1 if acmg == "Likely Pathogenic" else 0,
+                            "exon": None,
+                            "clinvar_sig": None,
+                            "clinvar_id": None,
+                            "gnomad_af": None,
+                            "cadd_phred": None,
+                            "revel": None,
+                            "spliceai_ds_max": None,
+                            "acmg_class": "Unreviewed",
+                            "acmg_criteria": "",
+                            "acmg_score": 0,
+                            "somatic_tier": "Not Evaluated",
+                            "is_actionable": 0,
                             "review_status": "Unreviewed",
                             "tags": "GIAB_CMRG_TruthSet",
-                            "notes": f"High-confidence benchmark call from GIAB CMRG v1.00 ({gene_symbol})"
+                            "notes": f"GIAB CMRG v1.00 benchmark call in {gene_symbol} (analytical truth set; clinical interpretation not performed)"
                         })
 
                         if len(snv_records) >= batch_size:

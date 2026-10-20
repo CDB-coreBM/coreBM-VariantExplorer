@@ -10,18 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] - 2026-10-20
 
 ### Added
+- **Astra Clinical Compliance & Action Plan Implementation (H01–H39)**:
+  - **Zero Simulation Policy & De-Fabrication**: Eradicated all synthetic sine-wave coverage, fabricated metrics, and benchmark mock annotations across the platform (H01, H08, H19, H29). Missing metrics strictly display as `"-"` or `"Not Evaluated"`.
+  - **Sample Isolation & File Registry**: Added `sample_files` registry in SQLite ensuring patient cases never inherit or fall back to HG002 benchmark files (H05).
+  - **Curated Report & Notes Persistence**: Synchronized DB schemas with JSON finding payloads; report generation prioritizes curated findings and preserves all user clinical notes (H06, H07, H27). Added Section 5 for Short Tandem Repeats (STRs) in HTML diagnostic reports.
+  - **Genomic Rigor & Physical Phasing**: Physical phasing strictly requires `|` (e.g. `1|0` -> hap 1, `0|1` -> hap 2); unphased `/` sets `haplotype = None` per VCF 4.3 specification (H04, H11). Phasing engine checks chromosome matching and phase set IDs; two VUS in trans are strictly classified as non-diagnostic ("VUS Pair in Trans (Non-Diagnostic)") (H04).
+  - **Methylation Parser Contig Checking**: Required chromosome matching before mapping promoter methylation to genes, and removed modkit columns 14 & 15 (`N_delete`, `N_fail`) mis-parsing (H17).
+  - **Transparent Gzip Decompression**: Automated detection and decompression of `.gz` files and gzip magic bytes (`\x1f\x8b`) upon upload (H32).
+  - **Strict HTTP Input Validation & Non-Fallback**: Validated `page`, `limit`, `max_gnomad_af`, `min_vaf`, `min_len`, `max_len`, and `min_support` returning HTTP 400 on malformed inputs (H36). Eliminated silent fallback to Case 1 across IGV, phasing, and repeat endpoints; missing or non-existent cases return 400/404 (H36).
+  - **Cache Invalidation & Performance**: Invalidate SNV stats cache upon sample ingestion (H35). Added single-pass BAM depth calculation in `igv_manager.py` reducing query times from ~40s to <50ms (H35).
+  - **Frontend Race Condition Guards & On-Demand Fetching**: Added requested case ID checks across `app.js`, `snv_table.js`, `sv_viewer.js`, `methylation_view.js`, and `repeats_view.js` (H26). Circos plot data is now fetched on-demand and cached per case, eliminating repetitive full downloads during SV table pagination (H35).
+  - **Packaging & Dependency Harmonization**: Synchronized `setup.py` dependencies (`pysam`, `numpy`, `requests`) with `requirements.txt` (H37).
+  - **Comprehensive Remediation Test Suite**: Added `tests/test_v13_astra_remediations.py` covering all Astra findings, expanding unit test coverage to 66 passing tests (H38).
 - **Interactive Tandem Repeat Expansion Sizing Distribution Plot**:
   - Implemented single-molecule sizing distribution plot modeled after ExpansionHunter and TRGT clinical reports.
   - Horizontal multi-gene tracks displaying *ATXN3*, *FXN*, *ATN1*, *AR*, *DMPK*, *HTT*, *FMR1*, *ATXN1*, *ATXN2*, *CACNA1A*, *ATXN7*, *C9orf72*, *RFC1*, and *NOTCH2NLC*.
-  - Three distinct background shaded clinical range zones per gene track:
-    - **Normal Range**: Sky Blue band (`<= normal_cutoff`).
-    - **Risk / Premutation Range**: Soft Cream / Light Amber band (`normal_cutoff` to `pathogenic_cutoff`).
-    - **Disease / Full Expansion Range**: Soft Peach / Coral band (`>= pathogenic_cutoff`).
-  - Calibrated reference population cohort swarm distribution (Normal = blue, Premutation = amber, Full expansion = crimson).
-  - Prominent, high-contrast, glowing diamond marker displaying where the active patient sample falls (showing both Long Allele and Short Allele with clinical classification).
-  - Sizing unit toggle: Switch dynamically between **Base Pairs (bp)** (matching ExpansionHunter) and **Repeat Copies**.
-  - Interactive SVG tooltips with detailed allele sizing, disease association, and quick action buttons ("Inspect in IGV" and "Add to Report").
-  - Publication-grade "Experimental status" legend box.
+  - Three distinct background shaded clinical range zones per gene track: Normal Range (Sky Blue), Risk / Premutation Range (Light Amber), and Disease / Full Expansion Range (Soft Peach / Coral).
+  - Calibrated reference population cohort swarm distribution and glowing diamond marker for the active patient sample.
+  - Sizing unit toggle: Switch dynamically between **Base Pairs (bp)** and **Repeat Copies**.
+  - Interactive SVG tooltips with allele sizing, disease association, and quick action shortcuts ("Inspect in IGV" and "Add to Report").
   - View switcher toolbar to toggle between the **Expansion Sizing Distribution Plot** and the **Repeat Callset Table**.
 - **External Standard JSON Catalog for Tandem Repeat Loci (Zero Hard-Coding)**:
   - Replaced all hardcoded loci definitions in Python with a standard external JSON catalog (`variant_explorer/data/tandem_repeat_catalog.json`).

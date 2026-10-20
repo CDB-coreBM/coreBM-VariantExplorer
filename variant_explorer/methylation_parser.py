@@ -60,7 +60,7 @@ def parse_bedmethyl_content(bed_text_or_lines, case_id: int) -> List[Dict[str, A
             except (ValueError, IndexError):
                 continue
 
-        # Phased Allele-Specific Methylation (ASM) if HP1/HP2 present
+        # Phased Allele-Specific Methylation (ASM) only if explicitly present in extended DMR/ASM columns
         hp1_percent = None
         hp2_percent = None
         is_asm = 0
@@ -68,14 +68,6 @@ def parse_bedmethyl_content(bed_text_or_lines, case_id: int) -> List[Dict[str, A
             try:
                 hp1_percent = float(parts[-2])
                 hp2_percent = float(parts[-1])
-                if abs(hp1_percent - hp2_percent) >= 40.0:
-                    is_asm = 1
-            except (ValueError, IndexError):
-                pass
-        elif len(parts) >= 16:
-            try:
-                hp1_percent = float(parts[14])
-                hp2_percent = float(parts[15])
                 if abs(hp1_percent - hp2_percent) >= 40.0:
                     is_asm = 1
             except (ValueError, IndexError):
@@ -97,8 +89,9 @@ def parse_bedmethyl_content(bed_text_or_lines, case_id: int) -> List[Dict[str, A
         status = "Normal"
 
         for target_gene, info in CLINICAL_METHYLATION_TARGETS.items():
-            matches_coord = (info["chrom"].lower() == chrom.lower() and max(start_pos, info["start"]) <= min(end_pos, info["end"]))
-            matches_name = (cand_gene.upper() == target_gene.upper() or target_gene.upper() in cand_gene.upper())
+            same_chrom = (info["chrom"].lower() == chrom.lower())
+            matches_coord = (same_chrom and max(start_pos, info["start"]) <= min(end_pos, info["end"]))
+            matches_name = (same_chrom and (cand_gene.upper() == target_gene.upper() or target_gene.upper() in cand_gene.upper()))
             if matches_coord or matches_name:
                 gene_symbol = target_gene
                 region_type = info.get("region_type", "Promoter CpG Island")

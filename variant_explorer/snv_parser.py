@@ -62,9 +62,24 @@ def parse_vcf_snv_content(vcf_text_or_lines, case_id: int) -> List[Dict[str, Any
         sample_vals = parts[9].split(":") if len(parts) > 9 else []
         fmt: Dict[str, str] = dict(zip(format_keys, sample_vals))
 
-        gt = fmt.get("GT", "0/1")
-        phase_set = fmt.get("PS", None)
-        haplotype = 1 if gt in ("1|0", "1/0") else 2 if gt in ("0|1", "0/1") else None
+        gt = fmt.get("GT", "./.")
+        phase_set_raw = fmt.get("PS", None)
+        phase_set = None
+        if phase_set_raw and phase_set_raw not in (".", ""):
+            phase_set = str(phase_set_raw)
+
+        # Physical phasing strictly requires '|' delimiter per VCF 4.3 specification
+        if "|" in gt:
+            if gt == "1|0":
+                haplotype = 1
+            elif gt == "0|1":
+                haplotype = 2
+            elif gt in ("1|1", "1|2", "2|1"):
+                haplotype = 3
+            else:
+                haplotype = None
+        else:
+            haplotype = None
 
         # Depth and Allelic Depth
         depth = 0
@@ -81,7 +96,14 @@ def parse_vcf_snv_content(vcf_text_or_lines, case_id: int) -> List[Dict[str, Any
                 if depth == 0 and ad_parts[0].isdigit():
                     depth = int(ad_parts[0]) + alt_depth
 
-        vaf = float(fmt.get("AF", 0.0)) if "AF" in fmt else (round(alt_depth / depth, 3) if depth > 0 else 0.0)
+        vaf = 0.0
+        if "AF" in fmt and fmt["AF"] not in (".", ""):
+            try:
+                vaf = float(fmt["AF"])
+            except ValueError:
+                vaf = 0.0
+        elif depth > 0:
+            vaf = round(alt_depth / depth, 3)
 
         # Handle CSQ VEP annotations
         csq_raw = info_dict.get("CSQ", "")
@@ -91,12 +113,30 @@ def parse_vcf_snv_content(vcf_text_or_lines, case_id: int) -> List[Dict[str, Any
         hgvs_p = ""
         transcript_id = ""
         exon = ""
-        gnomad_af = float(info_dict.get("AF_POPMAX", info_dict.get("gnomAD_AF", 0.0)))
+        gnomad_af = None
+        for af_key in ("AF_POPMAX", "gnomAD_AF", "MAX_AF", "gnomad_af", "gnomADg_AF", "gnomADe_AF"):
+            val = info_dict.get(af_key, "").strip()
+            if val and val != ".":
+                try:
+                    gnomad_af = float(val)
+                    break
+                except ValueError:
+                    pass
+
         clinvar_sig = info_dict.get("CLNSIG", "")
         clinvar_id = info_dict.get("CLNACC", "")
-        cadd = float(info_dict.get("CADD_PHRED", 0.0))
-        revel = float(info_dict.get("REVEL", 0.0))
-        spliceai = float(info_dict.get("SpliceAI_DS_max", 0.0))
+        cadd = None
+        if "CADD_PHRED" in info_dict and info_dict["CADD_PHRED"] not in (".", ""):
+            try: cadd = float(info_dict["CADD_PHRED"])
+            except ValueError: pass
+        revel = None
+        if "REVEL" in info_dict and info_dict["REVEL"] not in (".", ""):
+            try: revel = float(info_dict["REVEL"])
+            except ValueError: pass
+        spliceai = None
+        if "SpliceAI_DS_max" in info_dict and info_dict["SpliceAI_DS_max"] not in (".", ""):
+            try: spliceai = float(info_dict["SpliceAI_DS_max"])
+            except ValueError: pass
 
         if csq_raw and csq_format:
             first_csq = csq_raw.split(",")[0].split("|")
@@ -111,7 +151,7 @@ def parse_vcf_snv_content(vcf_text_or_lines, case_id: int) -> List[Dict[str, Any
             # Extract population allele frequency across standard VEP fields
             for af_key in ("AF_POPMAX", "gnomAD_AF", "MAX_AF", "gnomad_af", "gnomADg_AF", "gnomADe_AF", "AF"):
                 val = csq_map.get(af_key, "").strip()
-                if val:
+                if val and val != ".":
                     try:
                         gnomad_af = float(val)
                         break
@@ -120,13 +160,13 @@ def parse_vcf_snv_content(vcf_text_or_lines, case_id: int) -> List[Dict[str, Any
                         
             if csq_map.get("CLIN_SIG"):
                 clinvar_sig = csq_map["CLIN_SIG"]
-            if csq_map.get("CADD_PHRED"):
+            if csq_map.get("CADD_PHRED") and csq_map["CADD_PHRED"] not in (".", ""):
                 try: cadd = float(csq_map["CADD_PHRED"])
                 except ValueError: pass
-            if csq_map.get("REVEL"):
+            if csq_map.get("REVEL") and csq_map["REVEL"] not in (".", ""):
                 try: revel = float(csq_map["REVEL"])
                 except ValueError: pass
-            if csq_map.get("SpliceAI_DS_max"):
+            if csq_map.get("SpliceAI_DS_max") and csq_map["SpliceAI_DS_max"] not in (".", ""):
                 try: spliceai = float(csq_map["SpliceAI_DS_max"])
                 except ValueError: pass
 

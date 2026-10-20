@@ -60,39 +60,57 @@ class PhasingEngine:
                         v1 = qualifying[i]
                         v2 = qualifying[j]
 
+                        c1 = (v1.get("chrom") or "").lower()
+                        c2 = (v2.get("chrom") or "").lower()
+                        same_chrom = (c1 == c2) if (c1 and c2) else True
+
                         # Check phase information
                         ps1 = v1.get("phase_set") or v1.get("ps")
                         ps2 = v2.get("phase_set") or v2.get("ps")
-                        gt1 = v1.get("genotype") or ""
-                        gt2 = v2.get("genotype") or ""
+                        gt1 = str(v1.get("genotype") or "")
+                        gt2 = str(v2.get("genotype") or "")
 
-                        # Determine haplotype
+                        valid_ps = (ps1 is not None and ps2 is not None and str(ps1) not in (".", "") and str(ps2) not in (".", "") and str(ps1) == str(ps2))
+
+                        # Determine physical haplotype strictly from phased '|' genotype
                         hp1 = None
                         if "|" in gt1:
                             parts = gt1.split("|")
                             if parts[0] == "1": hp1 = 1
-                            elif parts[1] == "1": hp1 = 2
+                            elif len(parts) > 1 and parts[1] == "1": hp1 = 2
+                        elif v1.get("haplotype") and "|" in str(v1.get("genotype", "")):
+                            hp1 = v1.get("haplotype")
 
                         hp2 = None
                         if "|" in gt2:
                             parts = gt2.split("|")
                             if parts[0] == "1": hp2 = 1
-                            elif parts[1] == "1": hp2 = 2
+                            elif len(parts) > 1 and parts[1] == "1": hp2 = 2
+                        elif v2.get("haplotype") and "|" in str(v2.get("genotype", "")):
+                            hp2 = v2.get("haplotype")
 
-                        # If explicitly annotated with haplotype
-                        if v1.get("haplotype"): hp1 = v1.get("haplotype")
-                        if v2.get("haplotype"): hp2 = v2.get("haplotype")
+                        is_phased = same_chrom and valid_ps and (hp1 in (1, 2)) and (hp2 in (1, 2))
 
-                        is_phased = (ps1 is not None and ps2 is not None and ps1 == ps2) or (hp1 is not None and hp2 is not None)
+                        acmg1 = (v1.get("acmg_class") or v1.get("clinical_significance") or "").lower()
+                        acmg2 = (v2.get("acmg_class") or v2.get("clinical_significance") or "").lower()
+                        is_p_lp_1 = any(term in acmg1 for term in ["pathogenic", "likely pathogenic"])
+                        is_p_lp_2 = any(term in acmg2 for term in ["pathogenic", "likely pathogenic"])
 
-                        if is_phased and hp1 and hp2:
+                        if is_phased:
                             if hp1 != hp2:
                                 config = "In-Trans (Opposite Haplotypes)"
-                                clinical_impact = "CONFIRMED COMPOUND HETEROZYGOTE (Biallelic disruption - Diagnostic)"
-                                status = "Pathogenic Biallelic Pair"
+                                if is_p_lp_1 and is_p_lp_2:
+                                    clinical_impact = "CONFIRMED COMPOUND HETEROZYGOTE (Biallelic disruption - Diagnostic)"
+                                    status = "Pathogenic Biallelic Pair"
+                                elif is_p_lp_1 or is_p_lp_2:
+                                    clinical_impact = "Candidate Compound Heterozygote (1 Pathogenic/LP + 1 VUS in trans - Clinical correlation recommended)"
+                                    status = "Candidate Biallelic Pair (VUS)"
+                                else:
+                                    clinical_impact = "Both variants classified as VUS. In-trans configuration does not establish pathogenicity."
+                                    status = "VUS Pair in Trans (Non-Diagnostic)"
                             else:
                                 config = "In-Cis (Same Haplotype)"
-                                clinical_impact = "Monoallelic Cis-Complex Allele (Patient is an asymptomatic carrier)"
+                                clinical_impact = "Monoallelic Cis-Complex Allele (Variants reside on same parental chromosome; single allele carrier)"
                                 status = "Carrier / Non-Diagnostic"
                         else:
                             config = "Unphased (Phase set boundary break or unlinked reads)"
@@ -106,7 +124,7 @@ class PhasingEngine:
                             "phase_configuration": config,
                             "clinical_interpretation": clinical_impact,
                             "diagnostic_status": status,
-                            "phase_set": ps1 if ps1 == ps2 else "Split Blocks",
+                            "phase_set": ps1 if (valid_ps and same_chrom) else "Split Blocks",
                             "v1_id": v1.get("id"),
                             "v2_id": v2.get("id")
                         })

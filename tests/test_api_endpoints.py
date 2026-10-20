@@ -26,6 +26,14 @@ class TestApiEndpoints(unittest.TestCase):
             sv_vcf_path=sv_file,
             meth_bed_path=meth_file,
         )
+        from variant_explorer.models import add_sample_file
+        add_sample_file(
+            cls.case_id,
+            file_type="bam",
+            file_path="data_store/samples/HG002/HG002_phased.bam",
+            index_path="data_store/samples/HG002/HG002_phased.bam.bai",
+            sample_name="Case01-ONT"
+        )
 
     def test_index_page(self):
         response = self.client.get('/')

@@ -41,10 +41,13 @@ async function loadRepeats(resetFilters = false) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;"><div class="spinner" style="margin: 0 auto 0.5rem auto;"></div>Loading tandem repeat expansions...</td></tr>';
   }
 
+  const requestedCaseId = AppState.activeCaseId;
   try {
-    const res = await fetch(`/api/repeats?case_id=${encodeURIComponent(AppState.activeCaseId)}`);
+    const res = await fetch(`/api/repeats?case_id=${encodeURIComponent(requestedCaseId)}`);
+    if (AppState.activeCaseId !== requestedCaseId) return;
     if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch repeats`);
     const data = await res.json();
+    if (AppState.activeCaseId !== requestedCaseId) return;
     repeatsData = data.repeat_expansions || data.repeats || [];
     referenceDistribution = data.reference_distribution || {};
     clinicalLociDefs = data.clinical_loci_definitions || {};

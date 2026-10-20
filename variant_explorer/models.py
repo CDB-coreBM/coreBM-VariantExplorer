@@ -245,6 +245,25 @@ def init_db(db_path: Optional[str] = None):
         )
     """)
 
+    # 7. Sample Files Registry (BAM, CRAM, VCF, BedMethyl)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sample_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_id INTEGER NOT NULL,
+            sample_name TEXT,
+            analysis_type TEXT DEFAULT 'WGS',
+            assembly TEXT DEFAULT 'GRCh38',
+            file_type TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            index_path TEXT,
+            checksum TEXT,
+            is_available INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sample_files_case_type ON sample_files(case_id, file_type);")
+
     # Indexes for sub-second filtering across millions of records
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_snv_case_pos ON variants_snv (case_id, chrom, pos)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_snv_case_gene ON variants_snv (case_id, gene_symbol)")
@@ -379,6 +398,77 @@ def seed_default_gene_panels(conn: sqlite3.Connection):
                 VALUES (?, ?, ?, ?, ?, 1)
             """, (panel_id, p["version"], genes_json, len(p["genes"]), p["changelog"]))
 
+    # Seed HG002 sample files if case HG002-GIAB-ONT-R10 exists
+    cursor.execute("SELECT id FROM cases WHERE case_id = 'HG002-GIAB-ONT-R10'")
+    hg002_case = cursor.fetchone()
+    if hg002_case:
+        hg002_id = hg002_case["id"]
+        cursor.execute("SELECT COUNT(*) FROM sample_files WHERE case_id = ?", (hg002_id,))
+        if cursor.fetchone()[0] == 0:
+            hg002_files = [
+                ("bam", "data_store/samples/HG002/HG002_phased.bam", "data_store/samples/HG002/HG002_phased.bam.bai"),
+                ("coverage_bedgraph", "data_store/samples/HG002/HG002_coverage.bedgraph.gz", "data_store/samples/HG002/HG002_coverage.bedgraph.gz.tbi"),
+                ("snv_vcf", "data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz", "data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz.tbi"),
+                ("sv_vcf", "data_store/samples/HG002/HG002_CMRG_SV.vcf.gz", "data_store/samples/HG002/HG002_CMRG_SV.vcf.gz.tbi"),
+                ("methylation_bed", "data_store/samples/HG002/hg002_methylation.bed.gz", "data_store/samples/HG002/hg002_methylation.bed.gz.tbi")
+            ]
+            for ftype, fpath, ipath in hg002_files:
+                cursor.execute("""
+                    INSERT INTO sample_files (case_id, sample_name, analysis_type, assembly, file_type, file_path, index_path)
+                    VALUES (?, 'HG002', 'CMRG_Benchmark', 'GRCh38', ?, ?, ?)
+                """, (hg002_id, ftype, fpath, ipath))
+
+    conn.commit()
+
+
+def get_sample_files(case_id: int, db_conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
+    """Returns registered files for a given case."""
+    should_close = False
+    if db_conn is None:
+        db_conn = get_db_connection()
+        should_close = True
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT * FROM sample_files WHERE case_id = ? AND is_available = 1 ORDER BY id ASC", (case_id,))
+    rows = [dict(r) for r in cursor.fetchall()]
+    if should_close:
+        db_conn.close()
+    return rows
+
+
+def get_sample_file_by_type(case_id: int, file_type: str, db_conn: Optional[sqlite3.Connection] = None) -> Optional[Dict[str, Any]]:
+    """Returns specific file record for a given case and file type."""
+    should_close = False
+    if db_conn is None:
+        db_conn = get_db_connection()
+        should_close = True
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT * FROM sample_files WHERE case_id = ? AND file_type = ? AND is_available = 1 LIMIT 1", (case_id, file_type))
+    row = cursor.fetchone()
+    res = dict(row) if row else None
+    if should_close:
+        db_conn.close()
+    return res
+
+
+def add_sample_file(case_id: int, file_type: str, file_path: str, index_path: Optional[str] = None,
+                    sample_name: Optional[str] = None, analysis_type: str = "WGS",
+                    assembly: str = "GRCh38", db_conn: Optional[sqlite3.Connection] = None) -> int:
+    """Register a genomic file for a case."""
+    should_close = False
+    if db_conn is None:
+        db_conn = get_db_connection()
+        should_close = True
+    cursor = db_conn.cursor()
+    cursor.execute("""
+        INSERT INTO sample_files (case_id, sample_name, analysis_type, assembly, file_type, file_path, index_path, is_available)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    """, (case_id, sample_name, analysis_type, assembly, file_type, file_path, index_path))
+    db_conn.commit()
+    file_id = cursor.lastrowid
+    if should_close:
+        db_conn.close()
+    return file_id
+
 
 def get_case_report_findings(conn_or_case_id: Any, case_id: Optional[int] = None) -> List[Dict[str, Any]]:
     """Retrieve all persistent clinical report findings for a case."""
@@ -413,7 +503,7 @@ def get_case_report_findings(conn_or_case_id: Any, case_id: Optional[int] = None
         item["variant_id"] = r["variant_id"]
         item["gene_symbol"] = r["gene_symbol"] or item.get("gene_symbol")
         item["acmg_class"] = r["acmg_class"] or item.get("acmg_class")
-        item["clinical_notes"] = r["clinical_notes"] or item.get("clinical_notes", "")
+        item["clinical_notes"] = r["clinical_notes"] if r["clinical_notes"] is not None else item.get("clinical_notes", "")
         item["created_at"] = r["created_at"]
         item["isClinicianAdded"] = True
         results.append(item)
@@ -511,18 +601,36 @@ def update_case_report_finding_notes(conn: sqlite3.Connection, case_id: int, fin
     is_numeric = isinstance(finding_id, int) or (isinstance(finding_id, str) and str(finding_id).isdigit())
     id_clause = "id = ?" if is_numeric else "variant_id = ?"
     val = int(finding_id) if is_numeric else str(finding_id)
+
+    # First fetch current finding_json to update it synchronously
+    cursor.execute(f"SELECT id, finding_json, acmg_class FROM case_report_findings WHERE case_id = ? AND {id_clause}", (case_id, val))
+    row = cursor.fetchone()
+    if not row:
+        return False
+    row_id = row[0]
+    raw_json = row[1]
+    curr_acmg = acmg_class or row[2]
+    try:
+        data = json.loads(raw_json) if raw_json else {}
+    except Exception:
+        data = {}
+    data["clinical_notes"] = notes
     if acmg_class:
-        cursor.execute(f"""
+        data["acmg_class"] = acmg_class
+    new_json = json.dumps(data)
+
+    if acmg_class:
+        cursor.execute("""
             UPDATE case_report_findings 
-            SET clinical_notes = ?, acmg_class = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE case_id = ? AND {id_clause}
-        """, (notes, acmg_class, case_id, val))
+            SET clinical_notes = ?, acmg_class = ?, finding_json = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (notes, acmg_class, new_json, row_id))
     else:
-        cursor.execute(f"""
+        cursor.execute("""
             UPDATE case_report_findings 
-            SET clinical_notes = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE case_id = ? AND {id_clause}
-        """, (notes, case_id, val))
+            SET clinical_notes = ?, finding_json = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (notes, new_json, row_id))
     conn.commit()
     return cursor.rowcount > 0
 

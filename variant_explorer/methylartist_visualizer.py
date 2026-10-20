@@ -15,13 +15,14 @@ def generate_methylartist_svg(
     end: int,
     gene_symbol: str = "MLH1",
     region_type: str = "Promoter CpG Island",
-    mean_percent: float = 78.5,
-    hp1_percent: Optional[float] = 76.0,
-    hp2_percent: Optional[float] = 81.0,
+    mean_percent: float = 0.0,
+    hp1_percent: Optional[float] = None,
+    hp2_percent: Optional[float] = None,
     is_asm: bool = False,
-    coverage: float = 45.0,
+    coverage: float = 30.0,
     cpg_sites: Optional[List[Dict[str, Any]]] = None,
     exons: Optional[List[Dict[str, Any]]] = None,
+    tss_pos: Optional[int] = None,
     width: int = 920,
     height: int = 460
 ) -> str:
@@ -162,21 +163,25 @@ def generate_methylartist_svg(
     svg.append(f'<line x1="{margin_left}" y1="{y_half}" x2="{width - margin_right}" y2="{y_half}" stroke="#334155" stroke-width="0.8" stroke-dasharray="2,2"/>')
     svg.append(f'<text x="{margin_left - 4}" y="{y_half + 3}" fill="#64748b" font-size="8" text-anchor="end">50%</text>')
 
-    hp1_val = hp1_percent if hp1_percent is not None else mean_percent
-    hp2_val = hp2_percent if hp2_percent is not None else mean_percent
-    y_hp1 = y_t3_base - int((hp1_val / 100.0) * y_t3_height)
-    y_hp2 = y_t3_base - int((hp2_val / 100.0) * y_t3_height)
+    has_phased = (hp1_percent is not None and hp2_percent is not None)
+    if has_phased:
+        hp1_val = float(hp1_percent)
+        hp2_val = float(hp2_percent)
+        y_hp1 = y_t3_base - int((hp1_val / 100.0) * y_t3_height)
+        y_hp2 = y_t3_base - int((hp2_val / 100.0) * y_t3_height)
 
-    # Render HP1 (Maternal / Allele 1) and HP2 (Paternal / Allele 2)
-    svg.append(f'<line x1="{margin_left}" y1="{y_hp1}" x2="{width - margin_right}" y2="{y_hp1}" stroke="#0284c7" stroke-width="2.2" stroke-dasharray="4,2"/>')
-    svg.append(f'<line x1="{margin_left}" y1="{y_hp2}" x2="{width - margin_right}" y2="{y_hp2}" stroke="#e85d04" stroke-width="2.2" stroke-dasharray="4,2"/>')
+        # Render HP1 (Maternal / Allele 1) and HP2 (Paternal / Allele 2)
+        svg.append(f'<line x1="{margin_left}" y1="{y_hp1}" x2="{width - margin_right}" y2="{y_hp1}" stroke="#0284c7" stroke-width="2.2" stroke-dasharray="4,2"/>')
+        svg.append(f'<line x1="{margin_left}" y1="{y_hp2}" x2="{width - margin_right}" y2="{y_hp2}" stroke="#e85d04" stroke-width="2.2" stroke-dasharray="4,2"/>')
 
-    # Legend for HP1 and HP2
-    svg.append(f'<rect x="{width - margin_right - 155}" y="{y_t3_top + 4}" width="150" height="20" fill="#1e293b" rx="4" opacity="0.95"/>')
-    svg.append(f'<line x1="{width - margin_right - 145}" y1="{y_t3_top + 14}" x2="{width - margin_right - 125}" y2="{y_t3_top + 14}" stroke="#0284c7" stroke-width="2.5"/>')
-    svg.append(f'<text x="{width - margin_right - 120}" y="{y_t3_top + 17}" fill="#38bdf8" font-size="8.5" font-weight="700">HP1: {hp1_val:.1f}%</text>')
-    svg.append(f'<line x1="{width - margin_right - 70}" y1="{y_t3_top + 14}" x2="{width - margin_right - 50}" y2="{y_t3_top + 14}" stroke="#e85d04" stroke-width="2.5"/>')
-    svg.append(f'<text x="{width - margin_right - 45}" y="{y_t3_top + 17}" fill="#fb923c" font-size="8.5" font-weight="700">HP2: {hp2_val:.1f}%</text>')
+        # Legend for HP1 and HP2
+        svg.append(f'<rect x="{width - margin_right - 155}" y="{y_t3_top + 4}" width="150" height="20" fill="#1e293b" rx="4" opacity="0.95"/>')
+        svg.append(f'<line x1="{width - margin_right - 145}" y1="{y_t3_top + 14}" x2="{width - margin_right - 125}" y2="{y_t3_top + 14}" stroke="#0284c7" stroke-width="2.5"/>')
+        svg.append(f'<text x="{width - margin_right - 120}" y="{y_t3_top + 17}" fill="#38bdf8" font-size="8.5" font-weight="700">HP1: {hp1_val:.1f}%</text>')
+        svg.append(f'<line x1="{width - margin_right - 70}" y1="{y_t3_top + 14}" x2="{width - margin_right - 50}" y2="{y_t3_top + 14}" stroke="#e85d04" stroke-width="2.5"/>')
+        svg.append(f'<text x="{width - margin_right - 45}" y="{y_t3_top + 17}" fill="#fb923c" font-size="8.5" font-weight="700">HP2: {hp2_val:.1f}%</text>')
+    else:
+        svg.append(f'<text x="{(margin_left + width - margin_right)/2}" y="{y_t3_top + y_t3_height/2 + 4}" fill="#64748b" font-size="9" text-anchor="middle">Allele-specific phased methylation (HP1 / HP2) not available for this locus (Zero Simulation Policy)</text>')
 
     # Track 4: Segplot Phased Single-Molecule Pileup Banner
     y_t4_top = 232
@@ -185,13 +190,19 @@ def generate_methylartist_svg(
     svg.append(f'<text x="{margin_left - 10}" y="{y_t4_top + 28}" fill="#94a3b8" font-size="8" text-anchor="end">Phased Reads</text>')
 
     # Phased representation bars
-    asm_desc = "Confirmed Imprinted Allele-Specific Methylation (ASM)" if is_imprinted else "Biallelic Epigenetic Status (Both alleles concordant)"
-    svg.append(f'<text x="{margin_left + 12}" y="{y_t4_top + 18}" fill="#e2e8f0" font-size="9" font-weight="700">'
-               f'<tspan fill="#38bdf8">Haplotype 1 (HP1): {hp1_val:.1f}%</tspan> | '
-               f'<tspan fill="#fb923c">Haplotype 2 (HP2): {hp2_val:.1f}%</tspan> | '
-               f'<tspan fill="#a78bfa">{asm_desc}</tspan></text>')
-    svg.append(f'<text x="{margin_left + 12}" y="{y_t4_top + 33}" fill="#64748b" font-size="8">'
-               f'Direct base-modification derived from ONT Dorado v0.7.3 / modkit BAM HP tags without PCR amplification.</text>')
+    if has_phased:
+        asm_desc = "Confirmed Imprinted Allele-Specific Methylation (ASM)" if is_imprinted else "Biallelic Epigenetic Status (Both alleles concordant)"
+        svg.append(f'<text x="{margin_left + 12}" y="{y_t4_top + 18}" fill="#e2e8f0" font-size="9" font-weight="700">'
+                   f'<tspan fill="#38bdf8">Haplotype 1 (HP1): {hp1_percent:.1f}%</tspan> | '
+                   f'<tspan fill="#fb923c">Haplotype 2 (HP2): {hp2_percent:.1f}%</tspan> | '
+                   f'<tspan fill="#a78bfa">{asm_desc}</tspan></text>')
+        svg.append(f'<text x="{margin_left + 12}" y="{y_t4_top + 33}" fill="#64748b" font-size="8">'
+                   f'Direct base-modification derived from ONT Dorado / modkit BAM HP tags without PCR amplification.</text>')
+    else:
+        svg.append(f'<text x="{margin_left + 12}" y="{y_t4_top + 18}" fill="#94a3b8" font-size="9" font-weight="600">'
+                   f'Unphased / single-molecule aggregate methylation profile (HP tags not present)</text>')
+        svg.append(f'<text x="{margin_left + 12}" y="{y_t4_top + 33}" fill="#64748b" font-size="8">'
+                   f'Direct base-modification derived from ONT Dorado / modkit bedMethyl summary.</text>')
 
     # Track 5: CpG Island & Regulatory Locus Bar
     y_t5 = 286
@@ -229,11 +240,12 @@ def generate_methylartist_svg(
         svg.append(f'<text x="{(margin_left + width - margin_right)/2}" y="{y_t6 + 22}" fill="#94a3b8" font-size="8.5" text-anchor="middle">'
                    f'Canonical Gene Span: {gene_symbol} ({chrom}:{start:,}-{end:,}) | RefSeq / Ensembl Canonical Transcript</text>')
 
-    # TSS / Promoter Flag
-    tss_x = margin_left + (0.15 * plot_width)
-    svg.append(f'<line x1="{tss_x}" y1="{y_t6 - 15}" x2="{tss_x}" y2="{y_t6}" stroke="#f59e0b" stroke-width="1.8"/>')
-    svg.append(f'<polygon points="{tss_x},{y_t6 - 15} {tss_x + 10},{y_t6 - 10} {tss_x},{y_t6 - 5}" fill="#f59e0b"/>')
-    svg.append(f'<text x="{tss_x + 13}" y="{y_t6 - 7}" fill="#f59e0b" font-size="8" font-weight="700">TSS (Promoter)</text>')
+    # TSS / Promoter Flag (Render only if authentic TSS coordinate provided within window)
+    if tss_pos and start <= tss_pos <= end:
+        tss_x = x_coord(tss_pos)
+        svg.append(f'<line x1="{tss_x}" y1="{y_t6 - 15}" x2="{tss_x}" y2="{y_t6}" stroke="#f59e0b" stroke-width="1.8"/>')
+        svg.append(f'<polygon points="{tss_x},{y_t6 - 15} {tss_x + 10},{y_t6 - 10} {tss_x},{y_t6 - 5}" fill="#f59e0b"/>')
+        svg.append(f'<text x="{tss_x + 13}" y="{y_t6 - 7}" fill="#f59e0b" font-size="8" font-weight="700">TSS (Promoter)</text>')
 
     # Footer note: Hospital Clinic & methylartist specs
     y_foot = height - 12

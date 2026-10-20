@@ -41,12 +41,15 @@ async function loadSnvVariants(resetPage = false) {
   });
   if (panel) params.append('panel_id', panel);
 
+  const requestedCaseId = AppState.activeCaseId;
   const tbody = document.getElementById('snvTableBody');
   tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--text-muted); padding: 2rem;"><div class="spinner" style="margin: 0 auto 0.5rem auto;"></div>Loading variants...</td></tr>';
 
   try {
     const res = await fetch(`/api/variants/snv?${params.toString()}`);
+    if (AppState.activeCaseId !== requestedCaseId) return;
     const result = await res.json();
+    if (AppState.activeCaseId !== requestedCaseId) return;
     snvData = result.variants || [];
     snvTotal = result.total_records || result.total || 0;
 

@@ -15,7 +15,7 @@ def generate_locus_svg(
     sv_start: Optional[int] = None,
     sv_end: Optional[int] = None,
     methylation_points: Optional[List[Dict[str, Any]]] = None,
-    mean_depth: float = 45.0,
+    mean_depth: Optional[float] = None,
     width: int = 860,
     height: int = 340
 ) -> str:
@@ -23,7 +23,7 @@ def generate_locus_svg(
     Renders an interactive, publication-ready SVG containing:
       1. Coordinate axis with cytoband scale
       2. Gene & exon structures
-      3. Sequencing depth profile (simulated ONT pileup)
+      3. Sequencing depth profile (authentic ONT pileup or unmeasured notice)
       4. Variant indicator / SV breakpoint arcs
       5. CpG Methylation lollipops (0-100% 5mC)
     """
@@ -78,16 +78,20 @@ def generate_locus_svg(
     y_cov_height = 65
     svg_parts.append(f'<text x="{margin_left - 10}" y="{y_cov_base - y_cov_height/2}" fill="#00a896" font-size="11" font-weight="600" text-anchor="end">Depth</text>')
     
-    # 30x clinical threshold line
-    y_30x = y_cov_base - int((30.0 / max(60.0, mean_depth * 1.5)) * y_cov_height)
-    svg_parts.append(f'<line x1="{margin_left}" y1="{y_30x}" x2="{width - margin_right}" y2="{y_30x}" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,3"/>')
-    svg_parts.append(f'<text x="{width - margin_right + 4}" y="{y_30x + 3}" fill="#ef4444" font-size="9">30x</text>')
+    if mean_depth is not None and mean_depth > 0:
+        # 30x clinical threshold line
+        y_30x = y_cov_base - int((30.0 / max(60.0, mean_depth * 1.5)) * y_cov_height)
+        svg_parts.append(f'<line x1="{margin_left}" y1="{y_30x}" x2="{width - margin_right}" y2="{y_30x}" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,3"/>')
+        svg_parts.append(f'<text x="{width - margin_right + 4}" y="{y_30x + 3}" fill="#ef4444" font-size="9">30x</text>')
 
-    # Flat reference line at mean depth across locus
-    y_mean = y_cov_base - int((mean_depth / max(60.0, mean_depth * 1.5)) * y_cov_height)
-    svg_parts.append(f'<rect x="{margin_left}" y="{y_mean}" width="{plot_width}" height="{y_cov_base - y_mean}" fill="url(#covGrad)"/>')
-    svg_parts.append(f'<line x1="{margin_left}" y1="{y_mean}" x2="{width - margin_right}" y2="{y_mean}" stroke="#00a896" stroke-width="1.8"/>')
-    svg_parts.append(f'<text x="{margin_left + 10}" y="{y_mean - 6}" fill="#00a896" font-size="9" font-weight="600">Mean Coverage: {mean_depth:.1f}x</text>')
+        # Flat reference line at mean depth across locus
+        y_mean = y_cov_base - int((mean_depth / max(60.0, mean_depth * 1.5)) * y_cov_height)
+        svg_parts.append(f'<rect x="{margin_left}" y="{y_mean}" width="{plot_width}" height="{y_cov_base - y_mean}" fill="url(#covGrad)"/>')
+        svg_parts.append(f'<line x1="{margin_left}" y1="{y_mean}" x2="{width - margin_right}" y2="{y_mean}" stroke="#00a896" stroke-width="1.8"/>')
+        svg_parts.append(f'<text x="{margin_left + 10}" y="{y_mean - 6}" fill="#00a896" font-size="9" font-weight="600">Mean Coverage: {mean_depth:.1f}x</text>')
+    else:
+        svg_parts.append(f'<rect x="{margin_left}" y="{y_cov_base - y_cov_height}" width="{plot_width}" height="{y_cov_height}" fill="#1e293b" opacity="0.4" rx="4"/>')
+        svg_parts.append(f'<text x="{(margin_left + width - margin_right)/2}" y="{y_cov_base - y_cov_height/2 + 4}" fill="#64748b" font-size="10" text-anchor="middle">Sequencing coverage depth: Not Measured for this locus (Zero Simulation Policy)</text>')
 
     # Track 4: Variant Indicators & Structural Variant Arcs
     if snv_pos and start <= snv_pos <= end:

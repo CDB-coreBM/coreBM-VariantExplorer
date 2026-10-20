@@ -36,10 +36,11 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         if not case_id_str:
             return None
         case_id_str = str(case_id_str).strip()
-        if case_id_str.isdigit():
-            return int(case_id_str)
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM cases WHERE case_id = ?", (case_id_str,))
+        if case_id_str.isdigit():
+            cursor.execute("SELECT id FROM cases WHERE id = ? OR case_id = ?", (int(case_id_str), case_id_str))
+        else:
+            cursor.execute("SELECT id FROM cases WHERE case_id = ?", (case_id_str,))
         row = cursor.fetchone()
         return row["id"] if row else None
 
@@ -117,7 +118,16 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         file_obj = request.files.get("file")
         content = ""
         if file_obj and file_obj.filename:
-            content = file_obj.read().decode("utf-8", errors="ignore")
+            raw_bytes = file_obj.read()
+            if raw_bytes.startswith(b"\x1f\x8b") or file_obj.filename.endswith(".gz"):
+                import gzip
+                try:
+                    content = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
+                except Exception as gz_err:
+                    conn.close()
+                    return jsonify({"status": "error", "message": f"Failed to decompress gzip file: {gz_err}"}), 400
+            else:
+                content = raw_bytes.decode("utf-8", errors="replace")
         elif "content" in request.form and request.form["content"].strip():
             content = request.form["content"].strip()
         else:
@@ -138,6 +148,7 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                 conn.close()
                 return jsonify({"status": "error", "message": f"Unknown file_type '{file_type}'."}), 400
 
+            _snv_case_stats_cache.pop(case_id, None)
             conn.close()
             return jsonify({"status": "success", "count": count, "message": msg})
         except Exception as e:
@@ -168,9 +179,27 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         max_gnomad = request.args.get("max_gnomad_af", "").strip()
         min_vaf = request.args.get("min_vaf", "").strip()
 
-        # Pagination: Never exceed 500 rows
-        page = max(1, int(request.args.get("page", 1)))
-        limit = min(500, max(10, int(request.args.get("limit", 50))))
+        # Pagination & Query Parameter Validation (H36)
+        page_raw = request.args.get("page", 1)
+        try:
+            page = int(page_raw)
+            if page < 1:
+                conn.close()
+                return jsonify({"status": "error", "message": "page must be an integer >= 1."}), 400
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({"status": "error", "message": "Invalid page parameter; must be an integer >= 1."}), 400
+
+        limit_raw = request.args.get("limit", 50)
+        try:
+            limit = int(limit_raw)
+            if limit < 1 or limit > 500:
+                conn.close()
+                return jsonify({"status": "error", "message": "limit must be an integer between 1 and 500."}), 400
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({"status": "error", "message": "Invalid limit parameter; must be an integer between 1 and 500."}), 400
+
         offset = (page - 1) * limit
 
         cursor = conn.cursor()
@@ -204,16 +233,26 @@ def create_app(db_path: Optional[str] = None) -> Flask:
             where_clauses.append("is_actionable = 1")
         if max_gnomad:
             try:
+                max_gnomad_val = float(max_gnomad)
+                if not (0.0 <= max_gnomad_val <= 1.0):
+                    conn.close()
+                    return jsonify({"status": "error", "message": "max_gnomad_af must be a float between 0.0 and 1.0."}), 400
                 where_clauses.append("gnomad_af <= ?")
-                params.append(float(max_gnomad))
-            except ValueError:
-                pass
+                params.append(max_gnomad_val)
+            except (ValueError, TypeError):
+                conn.close()
+                return jsonify({"status": "error", "message": "Invalid max_gnomad_af parameter; must be a valid float between 0.0 and 1.0."}), 400
         if min_vaf:
             try:
+                min_vaf_val = float(min_vaf)
+                if not (0.0 <= min_vaf_val <= 1.0):
+                    conn.close()
+                    return jsonify({"status": "error", "message": "min_vaf must be a float between 0.0 and 1.0."}), 400
                 where_clauses.append("vaf >= ?")
-                params.append(float(min_vaf))
-            except ValueError:
-                pass
+                params.append(min_vaf_val)
+            except (ValueError, TypeError):
+                conn.close()
+                return jsonify({"status": "error", "message": "Invalid min_vaf parameter; must be a valid float between 0.0 and 1.0."}), 400
         if search:
             where_clauses.append("(gene_symbol LIKE ? OR hgvs_p LIKE ? OR hgvs_c LIKE ? OR clinvar_sig LIKE ?)")
             p = f"%{search}%"
@@ -318,8 +357,26 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         min_support = request.args.get("min_support", "").strip()
         tr_only = request.args.get("tandem_repeat", "0") in ("1", "true")
 
-        page = max(1, int(request.args.get("page", 1)))
-        limit = min(500, max(10, int(request.args.get("limit", 50))))
+        page_raw = request.args.get("page", 1)
+        try:
+            page = int(page_raw)
+            if page < 1:
+                conn.close()
+                return jsonify({"status": "error", "message": "page must be an integer >= 1."}), 400
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({"status": "error", "message": "Invalid page parameter; must be an integer >= 1."}), 400
+
+        limit_raw = request.args.get("limit", 50)
+        try:
+            limit = int(limit_raw)
+            if limit < 1 or limit > 500:
+                conn.close()
+                return jsonify({"status": "error", "message": "limit must be an integer between 1 and 500."}), 400
+        except (ValueError, TypeError):
+            conn.close()
+            return jsonify({"status": "error", "message": "Invalid limit parameter; must be an integer between 1 and 500."}), 400
+
         offset = (page - 1) * limit
 
         cursor = conn.cursor()
@@ -347,22 +404,40 @@ def create_app(db_path: Optional[str] = None) -> Flask:
             params.append(sv_type)
         if min_len:
             try:
+                val = int(min_len)
+                if val < 0:
+                    conn.close()
+                    return jsonify({"status": "error", "message": "min_len must be a non-negative integer."}), 400
                 where_clauses.append("sv_len >= ?")
-                params.append(int(min_len))
-            except ValueError: pass
+                params.append(val)
+            except (ValueError, TypeError):
+                conn.close()
+                return jsonify({"status": "error", "message": "Invalid min_len parameter; must be an integer."}), 400
         if max_len:
             try:
+                val = int(max_len)
+                if val < 0:
+                    conn.close()
+                    return jsonify({"status": "error", "message": "max_len must be a non-negative integer."}), 400
                 where_clauses.append("sv_len <= ?")
-                params.append(int(max_len))
-            except ValueError: pass
+                params.append(val)
+            except (ValueError, TypeError):
+                conn.close()
+                return jsonify({"status": "error", "message": "Invalid max_len parameter; must be an integer."}), 400
         if gene:
             where_clauses.append("genes_affected LIKE ?")
             params.append(f"%{gene}%")
         if min_support:
             try:
+                val = int(min_support)
+                if val < 0:
+                    conn.close()
+                    return jsonify({"status": "error", "message": "min_support must be a non-negative integer."}), 400
                 where_clauses.append("support_reads >= ?")
-                params.append(int(min_support))
-            except ValueError: pass
+                params.append(val)
+            except (ValueError, TypeError):
+                conn.close()
+                return jsonify({"status": "error", "message": "Invalid min_support parameter; must be an integer."}), 400
         if tr_only:
             where_clauses.append("tandem_repeat = 1")
 
@@ -765,8 +840,14 @@ def create_app(db_path: Optional[str] = None) -> Flask:
 
     @app.route("/api/igv/tracks/coverage", methods=["GET"])
     def get_igv_coverage():
-        case_id_str = request.args.get("case_id", "1")
-        case_id = int(case_id_str) if case_id_str.isdigit() else 1
+        case_id_str = request.args.get("case_id")
+        if not case_id_str:
+            return jsonify({"status": "error", "message": "case_id is required."}), 400
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        conn.close()
+        if not case_id:
+            return jsonify({"status": "error", "message": f"Case '{case_id_str}' not found."}), 404
         chrom = request.args.get("chrom", "chr17")
         try:
             start = int(request.args.get("start", 7668000))
@@ -779,8 +860,14 @@ def create_app(db_path: Optional[str] = None) -> Flask:
 
     @app.route("/api/igv/tracks/snv", methods=["GET"])
     def get_igv_snv():
-        case_id_str = request.args.get("case_id", "1")
-        case_id = int(case_id_str) if case_id_str.isdigit() else 1
+        case_id_str = request.args.get("case_id")
+        if not case_id_str:
+            return jsonify({"status": "error", "message": "case_id is required."}), 400
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        conn.close()
+        if not case_id:
+            return jsonify({"status": "error", "message": f"Case '{case_id_str}' not found."}), 404
         chrom = request.args.get("chrom", "chr17")
         try:
             start = int(request.args.get("start", 1))
@@ -793,8 +880,14 @@ def create_app(db_path: Optional[str] = None) -> Flask:
 
     @app.route("/api/igv/tracks/sv", methods=["GET"])
     def get_igv_sv():
-        case_id_str = request.args.get("case_id", "1")
-        case_id = int(case_id_str) if case_id_str.isdigit() else 1
+        case_id_str = request.args.get("case_id")
+        if not case_id_str:
+            return jsonify({"status": "error", "message": "case_id is required."}), 400
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        conn.close()
+        if not case_id:
+            return jsonify({"status": "error", "message": f"Case '{case_id_str}' not found."}), 404
         chrom = request.args.get("chrom", "chr17")
         try:
             start = int(request.args.get("start", 1))
@@ -807,8 +900,14 @@ def create_app(db_path: Optional[str] = None) -> Flask:
 
     @app.route("/api/igv/tracks/methylation", methods=["GET"])
     def get_igv_methylation():
-        case_id_str = request.args.get("case_id", "1")
-        case_id = int(case_id_str) if case_id_str.isdigit() else 1
+        case_id_str = request.args.get("case_id")
+        if not case_id_str:
+            return jsonify({"status": "error", "message": "case_id is required."}), 400
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        conn.close()
+        if not case_id:
+            return jsonify({"status": "error", "message": f"Case '{case_id_str}' not found."}), 404
         chrom = request.args.get("chrom", "chr17")
         try:
             start = int(request.args.get("start", 1))
@@ -1007,14 +1106,159 @@ def create_app(db_path: Optional[str] = None) -> Flask:
 
     @app.route("/api/igv/config", methods=["GET"])
     def get_igv_config():
-        case_id_str = request.args.get("case_id", "1")
-        case_id = int(case_id_str) if case_id_str.isdigit() else 1
+        case_id_str = request.args.get("case_id")
+        conn = get_db_connection(app.config.get("DB_PATH"))
+        if case_id_str:
+            case_id = resolve_case_id(conn, case_id_str)
+        else:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM cases WHERE case_id = 'HG002-GIAB-ONT-R10'")
+            r = cursor.fetchone()
+            if not r:
+                cursor.execute("SELECT id FROM cases ORDER BY id ASC LIMIT 1")
+                r = cursor.fetchone()
+            case_id = r[0] if r else 1
+
+        if not case_id:
+            conn.close()
+            return jsonify({"status": "error", "message": f"Case '{case_id_str}' not found."}), 404
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT case_id, sample_name FROM cases WHERE id = ?", (case_id,))
+        case_row = cursor.fetchone()
+        case_code = case_row["case_id"] if case_row else f"CASE-{case_id}"
+        sample_label = case_row["sample_name"] if case_row else case_code
+
+        from .models import get_sample_files
+        sample_files = get_sample_files(case_id, db_conn=conn)
+        conn.close()
+
+        file_map = {f["file_type"]: f for f in sample_files}
+        has_bam = "bam" in file_map
+        has_coverage = "coverage_bedgraph" in file_map
+
         locus = request.args.get("locus", "chr17:7,668,000-7,688,000")
         
+        tracks = [
+            {
+                "name": "NCBI RefSeq Genes",
+                "type": "annotation",
+                "format": "refgene",
+                "url": "https://s3.amazonaws.com/igv.org.genomes/hg38/ncbiRefSeq.sorted.txt.gz",
+                "indexURL": "https://s3.amazonaws.com/igv.org.genomes/hg38/ncbiRefSeq.sorted.txt.gz.tbi",
+                "order": 1,
+                "visibilityWindow": -1,
+                "displayMode": "EXPANDED",
+                "color": "#0284c7",
+                "height": 70
+            },
+            {
+                "name": "CMRG Challenging Medical Genes (Benchmark)",
+                "type": "annotation",
+                "format": "bed",
+                "url": "/api/stream/files/variant_explorer/static/vendor/clinical_genes.bed.gz",
+                "indexURL": "/api/stream/files/variant_explorer/static/vendor/clinical_genes.bed.gz.tbi",
+                "order": 2,
+                "visibilityWindow": -1,
+                "displayMode": "EXPANDED",
+                "color": "#38bdf8",
+                "height": 45
+            }
+        ]
+
+        # Add coverage track if available for THIS case
+        if has_coverage:
+            cov_f = file_map["coverage_bedgraph"]
+            tracks.append({
+                "name": f"{sample_label} ONT Depth Coverage",
+                "type": "wig",
+                "format": "bedgraph",
+                "url": f"/api/stream/files/{cov_f['file_path']}",
+                "indexURL": f"/api/stream/files/{cov_f['index_path']}" if cov_f.get("index_path") else None,
+                "order": 2,
+                "height": 50,
+                "color": "#00a896",
+                "min": 0,
+                "max": 120
+            })
+
+        # Add BAM alignment track if available for THIS case (Never fallback to HG002)
+        if has_bam:
+            bam_f = file_map["bam"]
+            tracks.append({
+                "name": f"{sample_label} Phased Alignments (ONT)",
+                "type": "alignment",
+                "format": "bam",
+                "url": f"/api/stream/files/{bam_f['file_path']}",
+                "indexURL": f"/api/stream/files/{bam_f['index_path']}" if bam_f.get("index_path") else None,
+                "order": 3,
+                "height": 220,
+                "colorBy": "tag",
+                "colorByTag": "HP",
+                "displayMode": "EXPANDED",
+                "samplingDepth": 30,
+                "visibilityWindow": 30000,
+                "maxRows": 50
+            })
+
+        # Add SV track if available
+        if "sv_vcf" in file_map:
+            sv_f = file_map["sv_vcf"]
+            is_bm = "cmrg" in sv_f.get("file_path", "").lower() or "benchmark" in sv_f.get("file_path", "").lower()
+            sv_title = f"{sample_label} Medical Genes SV Benchmark (CMRG SV v1.00)" if is_bm else f"{sample_label} Structural Variants (Sniffles2)"
+            tracks.append({
+                "name": sv_title,
+                "type": "variant",
+                "format": "vcf",
+                "url": f"/api/stream/files/{sv_f['file_path']}",
+                "indexURL": f"/api/stream/files/{sv_f['index_path']}" if sv_f.get("index_path") else None,
+                "order": 4,
+                "height": 55,
+                "displayMode": "EXPANDED",
+                "visibilityWindow": -1,
+                "color": "#a855f7"
+            })
+
+        # Add Small Variants track if available
+        if "snv_vcf" in file_map:
+            snv_f = file_map["snv_vcf"]
+            tracks.append({
+                "name": f"{sample_label} Phased SNVs/Indels (Clair3)",
+                "type": "variant",
+                "format": "vcf",
+                "url": f"/api/stream/files/{snv_f['file_path']}",
+                "indexURL": f"/api/stream/files/{snv_f['index_path']}" if snv_f.get("index_path") else None,
+                "order": 5,
+                "height": 50,
+                "displayMode": "EXPANDED",
+                "visibilityWindow": -1,
+                "color": "#10b981"
+            })
+
+        # Add Methylation track if available
+        if "methylation_bed" in file_map:
+            m_f = file_map["methylation_bed"]
+            tracks.append({
+                "name": f"{sample_label} DNA Methylation (Dorado 5mC)",
+                "type": "annotation",
+                "format": "bed",
+                "url": f"/api/stream/files/{m_f['file_path']}",
+                "indexURL": f"/api/stream/files/{m_f['index_path']}" if m_f.get("index_path") else None,
+                "order": 6,
+                "displayMode": "EXPANDED",
+                "color": "#00a896",
+                "height": 50
+            })
+
         config = {
             "genome": "hg38",
             "loadDefaultGenomes": False,
             "locus": locus,
+            "case_id": case_id,
+            "case_code": case_code,
+            "sample_name": sample_label,
+            "has_bam": has_bam,
+            "bam_status": "Available" if has_bam else "Not Available",
             "showChromosomeWidget": True,
             "showIdeogram": True,
             "showNavigation": True,
@@ -1028,107 +1272,9 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                 "indexURL": "https://s3.amazonaws.com/igv.broadinstitute.org/genomes/seq/hg38/hg38.fa.fai",
                 "chromsizesURL": "/static/vendor/hg38_chromsizes.txt"
             },
-            "tracks": [
-                {
-                    "name": "NCBI RefSeq Genes",
-                    "type": "annotation",
-                    "format": "refgene",
-                    "url": "https://s3.amazonaws.com/igv.org.genomes/hg38/ncbiRefSeq.sorted.txt.gz",
-                    "indexURL": "https://s3.amazonaws.com/igv.org.genomes/hg38/ncbiRefSeq.sorted.txt.gz.tbi",
-                    "order": 1,
-                    "visibilityWindow": -1,
-                    "displayMode": "EXPANDED",
-                    "color": "#0284c7",
-                    "height": 70
-                },
-                {
-                    "name": "CMRG Challenging Medical Genes (Benchmark)",
-                    "type": "annotation",
-                    "format": "bed",
-                    "url": "/api/stream/files/variant_explorer/static/vendor/clinical_genes.bed.gz",
-                    "indexURL": "/api/stream/files/variant_explorer/static/vendor/clinical_genes.bed.gz.tbi",
-                    "order": 2,
-                    "visibilityWindow": -1,
-                    "displayMode": "EXPANDED",
-                    "color": "#38bdf8",
-                    "height": 45
-                },
-                {
-                    "name": "ONT Depth Coverage (PromethION)",
-                    "type": "wig",
-                    "format": "bedgraph",
-                    "url": "/api/stream/files/data_store/samples/HG002/HG002_coverage.bedgraph.gz",
-                    "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_coverage.bedgraph.gz.tbi",
-                    "order": 3,
-                    "height": 50,
-                    "color": "#00a896",
-                    "min": 0,
-                    "max": 120
-                },
-                {
-                    "name": "HG002 ONT Phased Read Alignments (PromethION)",
-                    "type": "alignment",
-                    "format": "bam",
-                    "url": "/api/stream/files/data_store/samples/HG002/HG002_phased.bam",
-                    "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_phased.bam.bai",
-                    "order": 4,
-                    "height": 220,
-                    "colorBy": "tag",
-                    "colorByTag": "HP",
-                    "displayMode": "EXPANDED",
-                    "samplingDepth": 30,
-                    "visibilityWindow": 30000,
-                    "maxRows": 50
-                },
-                {
-                    "name": "HG002 Medical Genes SV Benchmark (CMRG SV v1.00)",
-                    "type": "variant",
-                    "format": "vcf",
-                    "url": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_SV.vcf.gz",
-                    "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_SV.vcf.gz.tbi",
-                    "order": 5,
-                    "height": 55,
-                    "displayMode": "EXPANDED",
-                    "visibilityWindow": -1,
-                    "color": "#a855f7"
-                },
-                {
-                    "name": "HG002 Challenging Medical Genes (CMRG SNVs v1.00)",
-                    "type": "variant",
-                    "format": "vcf",
-                    "url": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz",
-                    "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_CMRG_smallvar.vcf.gz.tbi",
-                    "order": 6,
-                    "height": 50,
-                    "displayMode": "EXPANDED",
-                    "visibilityWindow": -1,
-                    "color": "#10b981"
-                },
-                {
-                    "name": "HG002 Whole-Genome Small Variants (GIAB v4.2.1)",
-                    "type": "variant",
-                    "format": "vcf",
-                    "url": "/api/stream/files/data_store/samples/HG002/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz",
-                    "indexURL": "/api/stream/files/data_store/samples/HG002/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz.tbi",
-                    "order": 7,
-                    "height": 55,
-                    "visibilityWindow": 100000,
-                    "color": "#ef4444"
-                },
-                {
-                    "name": "HG002 DNA Methylation (5mC CpG Promoters)",
-                    "type": "annotation",
-                    "format": "bed",
-                    "url": "/api/stream/files/data_store/samples/HG002/hg002_methylation.bed.gz",
-                    "indexURL": "/api/stream/files/data_store/samples/HG002/hg002_methylation.bed.gz.tbi",
-                    "order": 8,
-                    "displayMode": "EXPANDED",
-                    "color": "#10b981",
-                    "height": 50
-                }
-            ]
+            "tracks": tracks
         }
-        return jsonify({"status": "success", "config": config})
+        return jsonify({"status": "success", "config": config, **config})
 
     # Legacy SVG route for backward compatibility
     @app.route("/api/locus/svg", methods=["GET"])
@@ -1146,6 +1292,19 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         sv_start = int(request.args.get("sv_start")) if request.args.get("sv_start") else None
         sv_end = int(request.args.get("sv_end")) if request.args.get("sv_end") else None
 
+        mean_depth = None
+        case_id_str = request.args.get("case_id")
+        if case_id_str:
+            conn = get_db_connection(app.config.get("DB_PATH"))
+            cid = resolve_case_id(conn, case_id_str)
+            if cid:
+                c_cur = conn.cursor()
+                c_cur.execute("SELECT mean_depth FROM cases WHERE id = ?", (cid,))
+                c_row = c_cur.fetchone()
+                if c_row and c_row["mean_depth"]:
+                    mean_depth = float(c_row["mean_depth"])
+            conn.close()
+
         svg_content = generate_locus_svg(
             chrom=chrom,
             start=start,
@@ -1154,7 +1313,8 @@ def create_app(db_path: Optional[str] = None) -> Flask:
             snv_pos=snv_pos,
             sv_type=sv_type,
             sv_start=sv_start,
-            sv_end=sv_end
+            sv_end=sv_end,
+            mean_depth=mean_depth
         )
         return Response(svg_content, mimetype="image/svg+xml")
 
@@ -1286,12 +1446,51 @@ def create_app(db_path: Optional[str] = None) -> Flask:
     # -------------------------------------------------------------
     # Zero-Copy HTTP 206 Partial Content Genomic Streaming API
     # -------------------------------------------------------------
+    # -------------------------------------------------------------
+    # Zero-Copy HTTP 206 Partial Content Genomic Streaming API
+    # -------------------------------------------------------------
+    ALLOWED_STREAM_EXTENSIONS = {
+        ".bam", ".bai", ".csi", ".cram", ".crai", ".vcf", ".vcf.gz",
+        ".tbi", ".bed", ".bed.gz", ".bedmethyl", ".bigwig", ".bw",
+        ".bedgraph", ".bedgraph.gz", ".json", ".txt", ".tab"
+    }
+
     @app.route("/api/stream/files/<path:file_path>", methods=["GET"])
     def stream_file(file_path: str):
         safe_base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         requested_path = os.path.abspath(os.path.join(safe_base, file_path))
-        if not requested_path.startswith(safe_base):
+        
+        # Verify strict directory containment
+        try:
+            common = os.path.commonpath([safe_base, requested_path])
+        except ValueError:
+            abort(403, description="Access forbidden.")
+        if common != safe_base:
             abort(403, description="Access outside workspace is forbidden.")
+
+        # Restrict to designated genomic data and reference directories
+        rel_path = os.path.relpath(requested_path, safe_base).replace("\\", "/")
+        allowed_dirs = ("data_store/", "example_data/", "variant_explorer/static/vendor/")
+        if not any(rel_path.startswith(d) for d in allowed_dirs):
+            abort(403, description="Access restricted to authorized genomic data stores.")
+
+        # Whitelist permitted genomic extensions (prevent leaking .db, .py, .md, .git)
+        lower_name = requested_path.lower()
+        if lower_name.endswith(".vcf.gz"):
+            ext = ".vcf.gz"
+        elif lower_name.endswith(".bed.gz"):
+            ext = ".bed.gz"
+        elif lower_name.endswith(".bedgraph.gz"):
+            ext = ".bedgraph.gz"
+        else:
+            _, ext = os.path.splitext(lower_name)
+
+        if ext not in ALLOWED_STREAM_EXTENSIONS:
+            abort(403, description=f"File format '{ext}' is not authorized for streaming.")
+
+        if not os.path.isfile(requested_path):
+            abort(404, description="Requested genomic file not found.")
+
         from .streamer import stream_genomic_file
         return stream_genomic_file(requested_path)
 
@@ -1316,9 +1515,14 @@ def create_app(db_path: Optional[str] = None) -> Flask:
     # -------------------------------------------------------------
     @app.route("/api/phasing/compound_het", methods=["GET"])
     def get_compound_het():
-        case_id_str = request.args.get("case_id", "1")
-        case_id = int(case_id_str) if case_id_str.isdigit() else 1
+        case_id_str = request.args.get("case_id")
+        if not case_id_str:
+            return jsonify({"status": "error", "message": "case_id is required."}), 400
         conn = get_db_connection(app.config.get("DB_PATH"))
+        case_id = resolve_case_id(conn, case_id_str)
+        if not case_id:
+            conn.close()
+            return jsonify({"status": "error", "message": f"Case '{case_id_str}' not found."}), 404
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM variants_snv WHERE case_id = ?", (case_id,))
         variants = [dict(r) for r in cursor.fetchall()]
@@ -1328,52 +1532,43 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         return jsonify({"status": "success", "case_id": case_id, "count": len(results), "compound_heterozygous_pairs": results})
 
     # -------------------------------------------------------------
-    # Tandem Repeat Expansion API (TRGT / Straglr)
+    # Tandem Repeat Expansion API (TRGT / Straglr) - Strictly Read-Only
     # -------------------------------------------------------------
     @app.route("/api/repeats", methods=["GET"])
     def get_tandem_repeats():
         case_id_str = request.args.get("case_id")
+        if not case_id_str:
+            return jsonify({"status": "error", "message": "case_id is required."}), 400
         conn = get_db_connection(app.config.get("DB_PATH"))
-        case_id = resolve_case_id(conn, case_id_str) if case_id_str else 1
-        
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM tandem_repeats WHERE case_id = ? ORDER BY id ASC", (case_id,))
-        rows = [dict(r) for r in cursor.fetchall()]
+        case_id = resolve_case_id(conn, case_id_str)
+        if not case_id:
+            conn.close()
+            return jsonify({"status": "error", "message": f"Case '{case_id_str}' not found."}), 404
         
         from .tandem_repeats import TandemRepeatEngine
         catalog = TandemRepeatEngine.get_catalog()
         sorted_catalog_items = sorted(catalog.values(), key=lambda x: x.get("display_order", 999))
-        existing_genes = {r["gene_symbol"].upper() for r in rows}
 
-        # Insert any missing clinical repeat loci for this case from external catalog
-        for locus_meta in sorted_catalog_items:
-            gene = locus_meta.get("gene_symbol") or locus_meta.get("id")
-            if not gene:
-                continue
-            if gene.upper() not in existing_genes:
-                default_alleles = locus_meta.get("default_alleles", [15, 18])
-                a1 = default_alleles[0] if len(default_alleles) > 0 else 15
-                a2 = default_alleles[1] if len(default_alleles) > 1 else a1
-                motif = locus_meta.get("motif", "CAG")
-                eval_res = TandemRepeatEngine.evaluate_repeat_allele(gene, a1, a2, motif)
-                chrom = locus_meta.get("chrom", "chr1")
-                start = locus_meta.get("start", 0)
-                end = locus_meta.get("end", 0)
-                cursor.execute("""
-                    INSERT INTO tandem_repeats (
-                        case_id, gene_symbol, disease, motif, chrom, start, end,
-                        allele_1_count, allele_2_count, status, clinical_significance, acmg_class
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    case_id, eval_res["gene_symbol"], eval_res["disease"], eval_res["motif"],
-                    chrom, start, end, a1, a2, eval_res["status"],
-                    eval_res["clinical_significance"], eval_res.get("acmg_class", "Benign")
-                ))
-        conn.commit()
-
-        # Fetch all rows and order them matching external catalog display order
+        cursor = conn.cursor()
         cursor.execute("SELECT * FROM tandem_repeats WHERE case_id = ? ORDER BY id ASC", (case_id,))
         rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        # If no repeats recorded for this case, return empty result (strictly read-only)
+        if not rows:
+            return jsonify({
+                "status": "success",
+                "case_id": case_id,
+                "evaluated": False,
+                "count": 0,
+                "repeats": [],
+                "repeat_expansions": [],
+                "reference_distribution": TandemRepeatEngine.get_reference_distribution(),
+                "clinical_loci_definitions": TandemRepeatEngine.get_catalog(),
+                "catalog_path": TandemRepeatEngine.get_catalog_path(),
+                "message": "Tandem repeat expansions not evaluated for this case."
+            })
+
         gene_order = {
             (item.get("gene_symbol") or item.get("id", "")).upper(): item.get("display_order", idx)
             for idx, item in enumerate(sorted_catalog_items)
@@ -1392,11 +1587,11 @@ def create_app(db_path: Optional[str] = None) -> Flask:
             repeats.append(eval_res)
 
         ref_dist = TandemRepeatEngine.get_reference_distribution()
-        conn.close()
 
         return jsonify({
             "status": "success",
             "case_id": case_id,
+            "evaluated": True,
             "count": len(repeats),
             "repeats": repeats,
             "repeat_expansions": repeats,
@@ -1452,17 +1647,15 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         svs = [dict(r) for r in cursor.fetchall()]
         cursor.execute("SELECT * FROM methylation_regions WHERE case_id = ?", (case_id,))
         meth = [dict(r) for r in cursor.fetchall()]
+        cursor.execute("SELECT * FROM tandem_repeats WHERE case_id = ?", (case_id,))
+        repeats = [dict(r) for r in cursor.fetchall()]
+        curated_findings = get_case_report_findings(case_id, db_conn=conn)
         conn.close()
 
         from .phasing_engine import PhasingEngine
-        from .tandem_repeats import TandemRepeatEngine
         from .report_generator import ClinicalReportGenerator
 
         phased_pairs = PhasingEngine.evaluate_compound_heterozygosity(snvs)
-        repeats = [
-            TandemRepeatEngine.evaluate_repeat_allele("HTT", 18, 19, "CAG"),
-            TandemRepeatEngine.evaluate_repeat_allele("C9orf72", 4, 8, "GGGGCC")
-        ]
 
         report_data = ClinicalReportGenerator.compile_report_data(
             case=summary["case"],
@@ -1470,7 +1663,8 @@ def create_app(db_path: Optional[str] = None) -> Flask:
             svs=svs,
             meth=meth,
             phased_pairs=phased_pairs,
-            repeats=repeats
+            repeats=repeats,
+            curated_findings=curated_findings
         )
 
         if fmt == "json":
