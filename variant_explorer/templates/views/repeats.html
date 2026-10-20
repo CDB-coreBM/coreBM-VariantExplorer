@@ -24,53 +24,127 @@
     </div>
   </div>
 
-  <!-- Filter Toolbar -->
-  <div class="filter-card">
-    <div class="filter-row">
-      <div class="filter-input-group">
-        <span class="filter-label"><i class="fa-solid fa-magnifying-glass"></i> Search Locus:</span>
-        <input type="text" id="repeatsSearchInput" class="filter-control" placeholder="e.g. HTT, C9orf72, FMR1, Ataxia..." style="width: 220px;">
-      </div>
-      
-      <div class="filter-input-group">
-        <span class="filter-label">Expansion Status:</span>
-        <select id="repeatsStatusFilter" class="filter-control">
-          <option value="">All Expansion Statuses</option>
-          <option value="Pathogenic">Pathogenic Full Expansion</option>
-          <option value="Premutation">Reduced Penetrance / Premutation</option>
-          <option value="Intermediate">Intermediate (Mutable Normal)</option>
-          <option value="Normal">Normal Range</option>
-        </select>
+  <!-- View Mode Switcher Toolbar -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+    <div style="display: flex; gap: 0.5rem;">
+      <button id="repeatsViewPlotBtn" class="btn btn-primary" onclick="switchRepeatsViewMode('plot')" style="font-size: 0.82rem; font-weight: 700;">
+        <i class="fa-solid fa-chart-column"></i> Expansion Sizing Distribution Plot
+      </button>
+      <button id="repeatsViewTableBtn" class="btn btn-secondary" onclick="switchRepeatsViewMode('table')" style="font-size: 0.82rem; font-weight: 700;">
+        <i class="fa-solid fa-table-list"></i> Repeat Callset Table
+      </button>
+    </div>
+
+    <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem;">
+      <i class="fa-solid fa-circle-info"></i> Categorized by Normal, Risk (Premutation), and Disease (Full Expansion) clinical ranges
+    </div>
+  </div>
+
+  <!-- Sizing Distribution Plot Card (Interactive Multi-Gene Lanes) -->
+  <div id="repeatsPlotSection" class="card" style="margin-bottom: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden;">
+    <!-- Plot Header & Controls -->
+    <div style="background: linear-gradient(135deg, #0b2545 0%, #133c55 100%); padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--medical-teal); flex-wrap: wrap; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.65rem;">
+        <span class="hospital-badge" style="background: #0284c7;">EXPANSION HUNTER / TRGT</span>
+        <h3 style="color: #ffffff; font-size: 1.05rem; font-weight: 700; margin: 0;">Allele Sizing Distribution & Clinical Repeat Ranges</h3>
       </div>
 
-      <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-        <button id="repeatsApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
-        <button id="repeatsResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <!-- Unit Toggle -->
+        <div style="display: flex; align-items: center; gap: 0.4rem; background: rgba(255, 255, 255, 0.1); padding: 0.25rem 0.6rem; border-radius: 6px;">
+          <span style="font-size: 0.78rem; color: #cbd5e1; font-weight: 600;">Sizing Units:</span>
+          <button id="repeatsUnitBpBtn" class="btn btn-primary" onclick="setRepeatsUnit('bp')" style="padding: 0.15rem 0.55rem; font-size: 0.75rem; font-weight: 700;">
+            Base Pairs (bp)
+          </button>
+          <button id="repeatsUnitCopiesBtn" class="btn btn-secondary" onclick="setRepeatsUnit('copies')" style="padding: 0.15rem 0.55rem; font-size: 0.75rem; font-weight: 700;">
+            Repeat Copies
+          </button>
+        </div>
+
+        <button class="btn btn-secondary" onclick="renderRepeatsDistributionPlot()" style="padding: 0.25rem 0.65rem; font-size: 0.78rem;" title="Reset / Redraw Plot">
+          <i class="fa-solid fa-arrows-rotate"></i> Redraw
+        </button>
+      </div>
+    </div>
+
+    <!-- Plot Body with SVG Canvas and Info Bar -->
+    <div style="padding: 1.25rem 1.5rem; background: #ffffff;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; font-size: 0.82rem; color: #475569; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <span style="font-weight: 600;">Active Patient Sample:</span> 
+          <span id="repeatsPlotActiveSample" style="color: #0b2545; font-weight: 700; background: #f1f5f9; padding: 0.15rem 0.5rem; border-radius: 4px;">-</span>
+          <span style="margin-left: 0.5rem; color: #64748b;">(Showing exact long allele position vs reference cohort & clinical cutoffs)</span>
+        </div>
+        <div style="font-size: 0.78rem; color: #64748b;">
+          <span style="display: inline-block; width: 12px; height: 12px; background: #e0f2fe; border: 1px solid #7dd3fc; margin-right: 4px; vertical-align: middle;"></span> Normal
+          <span style="display: inline-block; width: 12px; height: 12px; background: #fef3c7; border: 1px solid #fde68a; margin-left: 10px; margin-right: 4px; vertical-align: middle;"></span> Risk / Premutation
+          <span style="display: inline-block; width: 12px; height: 12px; background: #fed7aa; border: 1px solid #fdba74; margin-left: 10px; margin-right: 4px; vertical-align: middle;"></span> Disease / Full Expansion
+        </div>
+      </div>
+
+      <!-- Scrollable SVG Canvas Container -->
+      <div id="repeatsSvgWrapper" style="width: 100%; overflow-x: auto; position: relative; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff;">
+        <div id="repeatsSvgContainer" style="min-width: 920px; width: 100%; position: relative;">
+          <!-- SVG rendered dynamically by repeats_view.js -->
+        </div>
+      </div>
+
+      <!-- Quick Action Floating Tooltip -->
+      <div id="repeatsPlotTooltip" style="display: none; position: absolute; z-index: 1000; background: rgba(15, 23, 42, 0.95); color: #ffffff; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.8rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); pointer-events: auto; max-width: 320px; border: 1px solid #334155;">
       </div>
     </div>
   </div>
 
-  <!-- Table Card -->
-  <div class="table-card">
-    <div class="table-responsive">
-      <table class="clinic-table" id="repeatsTable">
-        <thead>
-          <tr>
-            <th>Gene / Locus</th>
-            <th>Associated Disease</th>
-            <th>Repeat Motif</th>
-            <th>Allele 1 Size</th>
-            <th>Allele 2 Size</th>
-            <th>Clinical Cutoffs</th>
-            <th>Expansion Status</th>
-            <th>Clinical Assessment</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="repeatsTableBody">
-          <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading tandem repeat expansions...</td></tr>
-        </tbody>
-      </table>
+  <!-- Table Card & Filters -->
+  <div id="repeatsTableSection">
+    <!-- Filter Toolbar -->
+    <div class="filter-card">
+      <div class="filter-row">
+        <div class="filter-input-group">
+          <span class="filter-label"><i class="fa-solid fa-magnifying-glass"></i> Search Locus:</span>
+          <input type="text" id="repeatsSearchInput" class="filter-control" placeholder="e.g. HTT, C9orf72, FMR1, Ataxia..." style="width: 220px;">
+        </div>
+        
+        <div class="filter-input-group">
+          <span class="filter-label">Expansion Status:</span>
+          <select id="repeatsStatusFilter" class="filter-control">
+            <option value="">All Expansion Statuses</option>
+            <option value="Pathogenic">Pathogenic Full Expansion</option>
+            <option value="Premutation">Reduced Penetrance / Premutation</option>
+            <option value="Intermediate">Intermediate (Mutable Normal)</option>
+            <option value="Normal">Normal Range</option>
+          </select>
+        </div>
+
+        <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+          <button id="repeatsApplyFilterBtn" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
+          <button id="repeatsResetFilterBtn" class="btn btn-secondary"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="table-card">
+      <div class="table-responsive">
+        <table class="clinic-table" id="repeatsTable">
+          <thead>
+            <tr>
+              <th>Gene / Locus</th>
+              <th>Associated Disease</th>
+              <th>Repeat Motif</th>
+              <th>Allele 1 Size</th>
+              <th>Allele 2 Size</th>
+              <th>Clinical Cutoffs</th>
+              <th>Expansion Status</th>
+              <th>Clinical Assessment</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="repeatsTableBody">
+            <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading tandem repeat expansions...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>

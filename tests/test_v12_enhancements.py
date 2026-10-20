@@ -57,12 +57,16 @@ class TestV12Enhancements(unittest.TestCase):
         self.assertIn('id="methViewStudioBtn" class="btn btn-secondary"', html)
 
     def test_tandem_repeats_dedicated_view_and_api(self):
-        """Verify repeats section in nav and /api/repeats endpoint."""
+        """Verify repeats section in nav, view switcher, sizing plot, and /api/repeats endpoint."""
         res = self.client.get('/')
         self.assertEqual(res.status_code, 200)
         html = res.get_data(as_text=True)
         self.assertIn('data-view="repeats-view"', html)
         self.assertIn('id="repeats-view"', html)
+        self.assertIn('id="repeatsPlotSection"', html)
+        self.assertIn('id="repeatsSvgContainer"', html)
+        self.assertIn('id="repeatsViewPlotBtn"', html)
+        self.assertIn('id="repeatsViewTableBtn"', html)
         self.assertIn('repeats_view.js', html)
 
         # Test API
@@ -80,6 +84,63 @@ class TestV12Enhancements(unittest.TestCase):
         self.assertIn('allele1_copies', rep)
         self.assertIn('allele2_copies', rep)
         self.assertIn('expansion_status', rep)
+        self.assertIn('long_allele_bp', rep)
+        self.assertIn('normal_max_bp', rep)
+        self.assertIn('pathogenic_min_bp', rep)
+
+        # Verify reference cohort distribution and external catalog definitions
+        self.assertIn('reference_distribution', data)
+        self.assertIn('clinical_loci_definitions', data)
+        self.assertIn('catalog_path', data)
+        self.assertIn('HTT', data['reference_distribution'])
+        self.assertGreater(len(data['reference_distribution']['HTT']), 10)
+
+    def test_tandem_repeats_external_catalog_and_sizing_distribution(self):
+        """Verify external catalog loading, persistence, and /api/repeats/catalog API."""
+        from variant_explorer.tandem_repeats import TandemRepeatEngine
+
+        catalog = TandemRepeatEngine.get_catalog()
+        self.assertIn("HTT", catalog)
+        self.assertIn("FXN", catalog)
+        self.assertIn("FMR1", catalog)
+        self.assertEqual(catalog["HTT"]["motif"], "CAG")
+        self.assertEqual(catalog["HTT"]["normal_max"], 26)
+        self.assertEqual(catalog["HTT"]["pathogenic_min"], 40)
+
+        # Test GET /api/repeats/catalog
+        res = self.client.get('/api/repeats/catalog')
+        self.assertEqual(res.status_code, 200)
+        cat_data = json.loads(res.data)
+        self.assertEqual(cat_data.get('status'), 'success')
+        self.assertGreater(cat_data.get('count', 0), 10)
+
+        # Test POST /api/repeats/catalog to add/update custom locus
+        custom_locus = {
+            "gene_symbol": "TEST_GENE",
+            "disease": "Test Neurological Disorder",
+            "motif": "CAG",
+            "chrom": "chr1",
+            "start": 1000000,
+            "end": 1000060,
+            "normal_max": 20,
+            "intermediate_max": 30,
+            "pathogenic_min": 35,
+            "default_alleles": [12, 14]
+        }
+        post_res = self.client.post(
+            '/api/repeats/catalog',
+            data=json.dumps(custom_locus),
+            content_type='application/json'
+        )
+        self.assertEqual(post_res.status_code, 200)
+        post_data = json.loads(post_res.data)
+        self.assertEqual(post_data.get('status'), 'success')
+        self.assertIn("TEST_GENE", TandemRepeatEngine.get_catalog())
+
+        # Cleanup test locus
+        if "TEST_GENE" in TandemRepeatEngine.get_catalog():
+            del TandemRepeatEngine._catalog_cache["TEST_GENE"]
+            TandemRepeatEngine.save_catalog()
 
     def test_report_findings_persistence_db_and_api(self):
         """Verify report findings persist in SQLite across restarts and via REST API."""

@@ -1341,26 +1341,24 @@ def create_app(db_path: Optional[str] = None) -> Flask:
         rows = [dict(r) for r in cursor.fetchall()]
         
         from .tandem_repeats import TandemRepeatEngine
-        if not rows:
-            standard_loci = [
-                ("HTT", 18, 19, "CAG"),
-                ("C9orf72", 4, 8, "GGGGCC"),
-                ("FMR1", 29, 31, "CGG"),
-                ("FXN", 11, 14, "GAA"),
-                ("DMPK", 12, 15, "CTG"),
-                ("ATXN1", 28, 29, "CAG"),
-                ("ATXN2", 22, 23, "CAG"),
-                ("ATXN3", 21, 24, "CAG"),
-                ("CACNA1A", 11, 13, "CAG"),
-                ("ATXN7", 10, 12, "CAG")
-            ]
-            repeats = []
-            for gene, a1, a2, motif in standard_loci:
+        catalog = TandemRepeatEngine.get_catalog()
+        sorted_catalog_items = sorted(catalog.values(), key=lambda x: x.get("display_order", 999))
+        existing_genes = {r["gene_symbol"].upper() for r in rows}
+
+        # Insert any missing clinical repeat loci for this case from external catalog
+        for locus_meta in sorted_catalog_items:
+            gene = locus_meta.get("gene_symbol") or locus_meta.get("id")
+            if not gene:
+                continue
+            if gene.upper() not in existing_genes:
+                default_alleles = locus_meta.get("default_alleles", [15, 18])
+                a1 = default_alleles[0] if len(default_alleles) > 0 else 15
+                a2 = default_alleles[1] if len(default_alleles) > 1 else a1
+                motif = locus_meta.get("motif", "CAG")
                 eval_res = TandemRepeatEngine.evaluate_repeat_allele(gene, a1, a2, motif)
-                ref_locus = TandemRepeatEngine.PATHOGENIC_REPEAT_LOCI.get(gene.upper(), {})
-                chrom = ref_locus.get("chrom", "chr1")
-                start = ref_locus.get("start", 0)
-                end = ref_locus.get("end", 0)
+                chrom = locus_meta.get("chrom", "chr1")
+                start = locus_meta.get("start", 0)
+                end = locus_meta.get("end", 0)
                 cursor.execute("""
                     INSERT INTO tandem_repeats (
                         case_id, gene_symbol, disease, motif, chrom, start, end,
@@ -1371,29 +1369,68 @@ def create_app(db_path: Optional[str] = None) -> Flask:
                     chrom, start, end, a1, a2, eval_res["status"],
                     eval_res["clinical_significance"], eval_res.get("acmg_class", "Benign")
                 ))
-                eval_res["id"] = cursor.lastrowid
-                eval_res["chrom"] = chrom
-                eval_res["start"] = start
-                eval_res["end"] = end
-                repeats.append(eval_res)
-            conn.commit()
-        else:
-            repeats = []
-            for r in rows:
-                eval_res = TandemRepeatEngine.evaluate_repeat_allele(
-                    r["gene_symbol"], r["allele_1_count"], r["allele_2_count"], r["motif"]
-                )
-                eval_res["id"] = r["id"]
-                eval_res["chrom"] = r.get("chrom")
-                eval_res["start"] = r.get("start")
-                eval_res["end"] = r.get("end")
-                repeats.append(eval_res)
+        conn.commit()
+
+        # Fetch all rows and order them matching external catalog display order
+        cursor.execute("SELECT * FROM tandem_repeats WHERE case_id = ? ORDER BY id ASC", (case_id,))
+        rows = [dict(r) for r in cursor.fetchall()]
+        gene_order = {
+            (item.get("gene_symbol") or item.get("id", "")).upper(): item.get("display_order", idx)
+            for idx, item in enumerate(sorted_catalog_items)
+        }
+        rows.sort(key=lambda r: gene_order.get(r["gene_symbol"].upper(), 999))
+
+        repeats = []
+        for r in rows:
+            eval_res = TandemRepeatEngine.evaluate_repeat_allele(
+                r["gene_symbol"], r["allele_1_count"], r["allele_2_count"], r["motif"]
+            )
+            eval_res["id"] = r["id"]
+            eval_res["chrom"] = r.get("chrom")
+            eval_res["start"] = r.get("start")
+            eval_res["end"] = r.get("end")
+            repeats.append(eval_res)
+
+        ref_dist = TandemRepeatEngine.get_reference_distribution()
+        conn.close()
+
         return jsonify({
             "status": "success",
             "case_id": case_id,
             "count": len(repeats),
             "repeats": repeats,
-            "repeat_expansions": repeats
+            "repeat_expansions": repeats,
+            "reference_distribution": ref_dist,
+            "clinical_loci_definitions": TandemRepeatEngine.get_catalog(),
+            "catalog_path": TandemRepeatEngine.get_catalog_path()
+        })
+
+    @app.route("/api/repeats/catalog", methods=["GET", "POST"])
+    def manage_repeats_catalog():
+        """
+        External Tandem Repeat Catalog API:
+        GET: retrieve all loci definitions
+        POST: dynamically create or update a repeat locus in the external file
+        """
+        from .tandem_repeats import TandemRepeatEngine
+        if request.method == "POST":
+            payload = request.get_json() or {}
+            if not payload.get("gene_symbol") and not payload.get("id"):
+                return jsonify({"status": "error", "message": "gene_symbol or id is required"}), 400
+            locus = TandemRepeatEngine.add_or_update_locus(payload, persist=True)
+            return jsonify({
+                "status": "success",
+                "message": f"Locus {locus.get('gene_symbol')} updated in external catalog",
+                "locus": locus,
+                "catalog_path": TandemRepeatEngine.get_catalog_path()
+            })
+        
+        catalog = TandemRepeatEngine.get_catalog()
+        return jsonify({
+            "status": "success",
+            "catalog_path": TandemRepeatEngine.get_catalog_path(),
+            "count": len(catalog),
+            "loci": list(catalog.values())
         })
 
     # -------------------------------------------------------------

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-10-20
+
+### Added
+- **Interactive Tandem Repeat Expansion Sizing Distribution Plot**:
+  - Implemented single-molecule sizing distribution plot modeled after ExpansionHunter and TRGT clinical reports.
+  - Horizontal multi-gene tracks displaying *ATXN3*, *FXN*, *ATN1*, *AR*, *DMPK*, *HTT*, *FMR1*, *ATXN1*, *ATXN2*, *CACNA1A*, *ATXN7*, *C9orf72*, *RFC1*, and *NOTCH2NLC*.
+  - Three distinct background shaded clinical range zones per gene track:
+    - **Normal Range**: Sky Blue band (`<= normal_cutoff`).
+    - **Risk / Premutation Range**: Soft Cream / Light Amber band (`normal_cutoff` to `pathogenic_cutoff`).
+    - **Disease / Full Expansion Range**: Soft Peach / Coral band (`>= pathogenic_cutoff`).
+  - Calibrated reference population cohort swarm distribution (Normal = blue, Premutation = amber, Full expansion = crimson).
+  - Prominent, high-contrast, glowing diamond marker displaying where the active patient sample falls (showing both Long Allele and Short Allele with clinical classification).
+  - Sizing unit toggle: Switch dynamically between **Base Pairs (bp)** (matching ExpansionHunter) and **Repeat Copies**.
+  - Interactive SVG tooltips with detailed allele sizing, disease association, and quick action buttons ("Inspect in IGV" and "Add to Report").
+  - Publication-grade "Experimental status" legend box.
+  - View switcher toolbar to toggle between the **Expansion Sizing Distribution Plot** and the **Repeat Callset Table**.
+- **External Standard JSON Catalog for Tandem Repeat Loci (Zero Hard-Coding)**:
+  - Replaced all hardcoded loci definitions in Python with a standard external JSON catalog (`variant_explorer/data/tandem_repeat_catalog.json`).
+  - Supported multi-tier resolution: `REPEAT_CATALOG_PATH` env var, `data_store/tandem_repeat_catalog.json` user workspace override, or bundled catalog.
+  - Hot-reloading on catalog file modification via `mtime` checking without server restarts.
+  - REST API endpoint `/api/repeats/catalog` (`GET` to fetch definitions, `POST` to programmatically add or update repeat loci).
+  - Recessive inheritance support (e.g. *FXN*, *RFC1*) properly differentiating heterozygous carriers from biallelic expansions.
+
+---
+
 ## [1.2.0] - 2026-10-16
 
 ### Added
